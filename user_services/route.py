@@ -4,5 +4,6 @@ from user_services.models import User, get_db
 
 app = FastAPI()
 
-
+@app.get('/')
+def 
 
