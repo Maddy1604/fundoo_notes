@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from user_services.models import User, get_db
 from user_services.schemas import UserRegistration, UserLogin
 from passlib.context import CryptContext
-from user_services.utils import get_hash_password
+from user_services.utils import get_hash_password, verify_password
 
 bcrypt_contest = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -45,7 +45,7 @@ def user_register(user:UserRegistration, db:Session = Depends(get_db)):
 @app.post('/login')
 def user_login(user:UserLogin, db:Session = Depends(get_db)):
     log_user = db.query(User).filter(User.email == user.email, User.password == user.password).first()
-    if not log_user:
+    if not log_user or not verify_password(user.password, log_user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credential not matched")
     
     return {
