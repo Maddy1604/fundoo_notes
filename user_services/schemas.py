@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, field_validator
 import re
+from typing import List
 
 class UserRegistration(BaseModel):
     email : EmailStr
@@ -37,4 +38,5 @@ class UserLogin(BaseModel):
         return value 
 
 
-    
+class EmailModel(BaseModel):
+    address : List[str]
