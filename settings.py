@@ -4,6 +4,7 @@ class Settings(BaseSettings):
     model_config=SettingsConfigDict(env_file='.env', extra="ignore")
 
     db_url : str
+    notes_db_url : str
     JWT_SECRET : str
     JWT_ALGORITHM : str
     ACCESS_TOKEN_EXPIRY : int
