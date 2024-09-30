@@ -1,4 +1,4 @@
-from sqlalchemy import Integer, BigInteger, String, Column, Boolean, create_engine, DateTime
+from sqlalchemy import Integer, BigInteger, String, Column, Boolean, create_engine, DateTime, func
 from sqlalchemy.orm import declarative_base, sessionmaker
 from settings import settings
 
@@ -27,6 +27,9 @@ class Notes(Base):
     is_trash = Column(Boolean, index=True, default=False)
     reminder = Column(DateTime, nullable=True)
     user_id = Column(BigInteger, index=True, nullable=False)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     @property
     def to_dict(self):
