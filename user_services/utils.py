@@ -1,17 +1,13 @@
 from passlib.context import CryptContext
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from settings import settings
 import jwt
 import logging
-from dotenv import dotenv_values
-
-
-config_credentials = dotenv_values(".env")
 
 
 bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated = "auto")
 
-ACCESS_TOKEN_EXPIRY = 3600
+
 
 def get_hash_password(password):
     return bcrypt_context.hash(password)
@@ -19,21 +15,25 @@ def get_hash_password(password):
 def verify_password(plain_password, hased_password):
     return bcrypt_context.verify(plain_password, hased_password)
 
-def create_access_token(user_data:dict, expiry:timedelta = None, refresh : bool = False):
-    payload = {}
+def create_token(data: dict, token_type: str, exp= None):
+    
+    if token_type == "access":
+        expiration = exp or (datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRY))
+    elif token_type == "refresh":
+        expiration = exp or (datetime.now(timezone.utc) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRY))
+    else:
+        raise ValueError("Invalid token type. Must be 'access' or 'refresh'.")
 
-    payload['user'] =   user_data
-    payload['exp'] = datetime.now() + (expiry if expiry is not None else timedelta(seconds= ACCESS_TOKEN_EXPIRY))
-    payload['refresh'] = refresh
+    return jwt.encode({**data, "exp": expiration}, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
-    token = jwt.encode( 
-        payload = payload,
-        key = settings.JWT_SECRET,
-        algorithm=settings.JWT_ALGORITHM
-
-    )
-
-    return token
+# To generate both tokens
+def create_tokens(data: dict):
+    """
+    Generates both access and refresh tokens.
+    """
+    access_token = create_token(data, "access")
+    refresh_token = create_token(data, "refresh")
+    return access_token, refresh_token
 
 def decode_token(token):
     try:
@@ -45,6 +45,6 @@ def decode_token(token):
 
         return token_data
     
-    except jwt.PyJWTError as e:
-        logging.exception(e)
+    except Exception as error:
+        logging.exception(error)
         return None

@@ -1,28 +1,26 @@
-from fastapi_mail import FastMail, ConnectionConfig, MessageSchema, MessageType
+from fastapi_mail import FastMail, ConnectionConfig, MessageSchema
 from settings import settings
-from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent
 
 mail_config = ConnectionConfig(
     MAIL_USERNAME = settings.MAIL_USERNAME,
     MAIL_PASSWORD = settings.MAIL_PASSWORD,
-    MAIL_FROM = settings.MAIL_FROM,
+    MAIL_FROM = "no-reply@example.com",
     MAIL_PORT = 2525,
-    MAIL_SERVER = settings.MAIL_SERVER,
-    MAIL_FROM_NAME= settings.MAIL_FROM_NAME,
+    MAIL_SERVER = "smtp.mailtrap.io",
+    MAIL_FROM_NAME= "FundooNotes", #.env
     MAIL_STARTTLS = True,
     MAIL_SSL_TLS = False,
     USE_CREDENTIALS = True,
     VALIDATE_CERTS = True,
-    TEMPLATE_FOLDER=Path(BASE_DIR, 'templates')
 )
 
-mail = FastMail(
-    config = mail_config
-)
-
-def create_message(recipients:list[str], subject:str, body:str):
-    message = MessageSchema(recipients= recipients, subject=subject, body=body, subtype=MessageType.html)
-
-    return message
+async def send_verification_email(email: str, token: str, url: str):
+    message = MessageSchema(
+        subject="Verify your email",
+        recipients=[email],
+        body=f"Click on the link to verify your account: {url}",
+        subtype="html"
+    )
+    fm = FastMail(mail_config)
+    await fm.send_message(message)
