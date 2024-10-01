@@ -1,23 +1,119 @@
-from fastapi import FastAPI, Depends
-from notes_services.schemas import *
-from notes_services.models import Notes, get_db, session
-from settings import settings
+from fastapi import FastAPI, Depends, HTTPException, Security, Request
 from sqlalchemy.orm import Session
+from .models import Notes, get_db 
+from .schemas import CreateNote
+from fastapi.security import APIKeyHeader
+from .utils import auth_user
 
+# Initialize FastAPI app with dependency
+app = FastAPI(dependencies= [Security(APIKeyHeader(name= "Authorization", auto_error= False)), Depends(auth_user)])
 
-note_app = FastAPI()
+@app.get("/")
+def read_root():
+    '''
+    Discription: This is the handler function that gets called when a request is made to the root endpoint
+    Parameters: None
+    Return: A dictionary with a welcome message.
+    '''
+    return {"message": "Welcome to the Notes services API!"}
 
-@note_app.get('/')
-def root_note():
-    return {'message' : "Notes_services"}
-
-@note_app.post('/create')
-def create_note(note: NoteCreate, db: Session = Depends(get_db)):
-    db_note = Notes(**note.dict())
-    db.add(db_note)
+# CREATE Note
+@app.post("/notes/")
+def create_note(request: Request, note: CreateNote, db: Session = Depends(get_db)):
+    '''
+    Description: 
+    This function creates a new note with the provided title, description and color. The user_id is hardcoded.
+    Parameters: 
+    note: A `CreateNote` schema instance containing the note details.
+    db: The database session to interact with the database.
+    Return: 
+    The newly created note instance with its details.
+'''
+    data = note.model_dump()
+    data.update(user_id = request.state.user["id"])
+    
+    new_note = Notes(**data)
+    db.add(new_note)
     db.commit()
-    db.refresh(db_note)
+    db.refresh(new_note)
     return {
-        "message" : "New note is created",
-        "data" : db_note.to_dict
+        "message": "Note created successfully",
+        "status": "success",
+        "data": new_note
     }
+
+# GET all notes
+@app.get("/notes/")
+def get_notes(request: Request,  db: Session = Depends(get_db)):
+    '''
+    Description: 
+    This function retrieves a list of notes with pagination (skip and limit).
+    Parameters: 
+    db: The database session to interact with the database.
+    Return: 
+    A list of notes within the given range (based on skip and limit).
+    '''
+    #print(request.state.user)
+    user_data = request.state.user
+    
+    # Get user_id from response
+    user_id = user_data["id"] 
+    
+    # Query notes that belong to the authenticated user
+    notes = db.query(Notes).filter(Notes.user_id == user_id).all()
+    
+    return notes
+
+
+# UPDATE Note
+@app.put("/notes/{note_id}")
+def update_note(note_id: int, updated_note: CreateNote, db: Session = Depends(get_db)):
+    '''
+    Description: 
+    This function updates an existing note's details by its ID. If not found, raises a 404 error.
+    Parameters: 
+    note_id: The ID of the note to update.
+    updated_note: A `CreateNote` schema instance containing the updated details.
+    db: The database session to interact with the database.
+    Return: 
+    The updated note object after saving the changes.
+    '''
+    note = db.query(Notes).filter(Notes.id == note_id).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    
+    for key, value in updated_note.model_dump().items():
+        setattr(note, key, value)
+    
+    db.commit()
+    db.refresh(note)
+    return {
+        "message": "Note updated successfully",
+        "status": "success",
+        "data": note
+    }
+
+# DELETE Note
+@app.delete("/notes/{note_id}")
+def delete_note(note_id: int, db: Session = Depends(get_db)):
+    '''
+    Description: 
+    This function deletes a note by its ID. If not found, raises a 404 error.
+    Parameters: 
+    note_id: The ID of the note to delete.
+    db: The database session to interact with the database.
+    Return: 
+    A success message confirming the deletion of the note.
+    '''
+
+    note = db.query(Notes).filter(Notes.id == note_id).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    
+    db.delete(note)
+    db.commit()
+    return {
+        "message": "Note deleted successfully!",
+        "status": "success",
+        "data": note
+        }

@@ -1,22 +1,43 @@
 from passlib.context import CryptContext
-from datetime import timedelta, datetime, timezone
-from settings import settings
+from datetime import datetime, timedelta, timezone
 import jwt
-import logging
+from settings import settings
 
+# CryptContext for password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated = "auto")
+# Utility function to hash a password
+def hash_password(password: str) -> str:
+    """
+    Description:
+    hashed password function hash the user password for privacy puspose.
+    password : It take password as string which entered by user
+    Return : Returns hash password in string format
+    """
+    return pwd_context.hash(password)
 
-
-
-def get_hash_password(password):
-    return bcrypt_context.hash(password)
-
-def verify_password(plain_password, hased_password):
-    return bcrypt_context.verify(plain_password, hased_password)
-
-def create_token(data: dict, token_type: str, exp= None):
+# Utility function to verify hashed password
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """
+    Description:
+    verify the password that user entered and password that stored in database in hased format.
+    Parameters:
+    Plain_password : It takes password as string
+    hashed_password : It takes hashed passsord as string
+    Return : Boolean true or false
+    """
     
+    return pwd_context.verify(plain_password, hashed_password)
+
+# Unified Token Generation Function
+def create_token(data: dict, token_type: str, exp= None):
+    """
+    Description:
+    Sends a verification email to the user.
+    Parameters:
+    email : The email address of the user to send the verification link to.
+    verify_link : The verification link to be included in the email.
+    """
     if token_type == "access":
         expiration = exp or (datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRY))
     elif token_type == "refresh":
@@ -34,17 +55,3 @@ def create_tokens(data: dict):
     access_token = create_token(data, "access")
     refresh_token = create_token(data, "refresh")
     return access_token, refresh_token
-
-def decode_token(token):
-    try:
-        token_data = jwt.decode(
-            jwt=token,
-            key=settings.JWT_SECRET,
-            algorithms=[settings.JWT_ALGORITHM] 
-        )
-
-        return token_data
-    
-    except Exception as error:
-        logging.exception(error)
-        return None

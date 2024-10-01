@@ -5,10 +5,13 @@ class Settings(BaseSettings):
 
     db_url : str
     notes_db_url : str
+
     JWT_SECRET : str
     JWT_ALGORITHM : str
+
     ACCESS_TOKEN_EXPIRY : int
     REFRESH_TOKEN_EXPIRY : int
+    
     MAIL_USERNAME : str
     MAIL_PASSWORD : str
     MAIL_FROM : str
