@@ -62,7 +62,11 @@ def get_notes(request: Request,  db: Session = Depends(get_db)):
     # Query notes that belong to the authenticated user
     notes = db.query(Notes).filter(Notes.user_id == user_id).all()
     
-    return notes
+    return {
+        "message" : "Get all notes",
+        "status" : "Success",
+        "data" : notes
+    }
 
 
 # UPDATE Note
@@ -118,50 +122,109 @@ def delete_note(note_id: int, db: Session = Depends(get_db)):
         "data": note
         }
 
-@app.patch('/notes/{note_id}/archive')
-def toggle_archive(request : Request, note_id : int, db : Session = Depends(get_db), user : dict = Depends(auth_user)):
-    note = db.query(Notes).filter(Notes.id == note_id,  Notes.user_id == user["id"]).first()
-    if not note:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
-    
-    note.is_archive = not note.is_archive   
-    db.commit()
-    db.refresh(note)
-    return{
-        "message" : "Note is archived successfully,",
-        "status" : "Successs",
-        "data": note
-    }
-    
+# Archive notes by note id
+@app.patch('/notes/archive/{note_id}')
+def toggle_archive(request : Request, note_id : int, db : Session = Depends(get_db)):
+    user_id = request.state.user["id"]
+    """
+    Description: 
+    This function archives the note by its ID. If not found, raises a 404 error.
+    It takes parameter as request wiht Request type, note_is as int type, db as session wiht dependency with get_db
+    Parameters: 
+    request : Request type
+    note_id: The ID of the note to archived note.
+    db: The database session to interact with the database.
+    Return: 
+    A success message wiht all archied notes for respective user.
+    """
+    try:
+        note = db.query(Notes).filter(Notes.id == note_id,  Notes.user_id == user_id).first()
+        if not note:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+        
+        note.is_archive = not note.is_archive   
+        db.commit()
+        db.refresh(note)
+        return{
+            "message" : "Note is archived successfully,",
+            "status" : "Successs",
+            "data": note
+        }
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unathorized user")
+
+# Get all archived note    
 @app.get('/notes/archived')
-def archived_notes(user : dict = Depends(auth_user), db : Session = Depends(get_db)):
-    note = db.query(Notes).filter(Notes.user_id == user["id"], Notes.is_archive == True).all()
-    return{
-        "message" : "Archived notes sucessfully.",
-        "status" : "Success",
-        "data" : note
-    }
+def archived_notes(request : Request, db : Session = Depends(get_db)):
+    user_id = request.state.user["id"]
+    """
+    Description: 
+    This function shows archive notes. If not found, raises a 400 error.
+    Parameters: 
+    request : Request type
+    db: The database session to interact with the database.
+    Return: 
+    A success message conformation and show all archived notes.
+    """
+    try:
+        note = db.query(Notes).filter(Notes.user_id == user_id, Notes.is_archive == True).all()
+        return{
+            "message" : "Archived notes sucessfully.",
+            "status" : "Success",
+            "data" : note
+        }
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty archived section")
 
-@app.patch('/notes/{note_id}/trash')
-def toggle_trash(note_id : int, db : Session = Depends(get_db), user : dict = Depends(auth_user)):
-    note = db.query(Notes).filter(Notes.id == note_id, Notes.user_id == user["id"]).first()
-    if not note:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
-    
-    note.is_trash = not note.is_trash
-    db.commit()
-    db.refresh(note)
-    return{
-        "message" : "Note is trashed successfully.",
-        "status" : "Success",
-        "data" : note
-    }
+# Trash notes by notes id
+@app.patch('/notes/trash/{note_id}')
+def toggle_trash(request : Request, note_id : int, db : Session = Depends(get_db)):
+    user_id = request.state.user["id"]
+    """
+    Description: 
+    This function trash the notes by its ID. If not found, raises a 404 error.
+    Parameters: 
+    request : Request type
+    note_id: The ID of the note to archived note.
+    db: The database session to interact with the database.
+    Return: 
+    A success message wiht trash notes for respective user.
+    """
+    try:
+        note = db.query(Notes).filter(Notes.id == note_id, Notes.user_id == user_id).first()
+        if not note:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+        
+        note.is_trash = not note.is_trash
+        db.commit()
+        db.refresh(note)
+        return{
+            "message" : "Note is trashed successfully.",
+            "status" : "Success",
+            "data" : note
+        }
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
 
+# Get all trash notes
 @app.get('/notes/trash')
-def trashed_note(user : dict = Depends(auth_user), db : Session = Depends(get_db)):
-    note = db.query(Notes).filter(Notes.user_id == user["id"], Notes.is_trash ==True).all()
-    return{
-        "message" : "Note trashed successfully.",
-        "status" : "Success",
-        "data" : note
-    }
+def trashed_note(request : Request, db : Session = Depends(get_db)):
+    user_id = request.state.user["id"]
+    """
+    Description: 
+    This function shows trash notes. If not found, raises a 400 error.
+    Parameters: 
+    request : Request type
+    db: The database session to interact with the database.
+    Return: 
+    A success message conformation and show all trash notes.
+    """
+    try:
+        note = db.query(Notes).filter(Notes.user_id == user_id, Notes.is_trash ==True).all()
+        return{
+            "message" : "Note trashed successfully.",
+            "status" : "Success",
+            "data" : note
+        }
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty trash section")

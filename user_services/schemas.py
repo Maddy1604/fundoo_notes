@@ -51,6 +51,7 @@ class UserLogin(BaseModel):
     This class is used for validating the login request, 
     ensuring that an email and password are provided and in the given format.
     '''
+    # id : int
     email: EmailStr
     password: str
 

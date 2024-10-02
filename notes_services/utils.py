@@ -14,4 +14,5 @@ def auth_user(request: Request):
 
     user_data = response.json()["data"]
     request.state.user = user_data
+    # print(user_data)
     
