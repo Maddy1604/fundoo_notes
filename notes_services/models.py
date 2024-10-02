@@ -1,12 +1,17 @@
+# Importing required liberaries and modules and settings
+
 from sqlalchemy import Column, BigInteger, String, Boolean, DateTime, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from settings import settings
 
+# Defining base with declarative base
 Base = declarative_base()
 
+# creating engine object with create engine module and assigning database url which importing from settings
 engine = create_engine(settings.notes_db_url)
+# Creating local session for transaction using sessionmaker wiht parameter bind to start engine aand autocommit false
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Dependency to get the DB session
@@ -17,6 +22,7 @@ def get_db():
     finally:
         db.close()
 
+# Creating class with base parameter in that creating and assigning properties to columns
 class Notes(Base):
     __tablename__ = "notes"
     

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Security, Request
+from fastapi import FastAPI, Depends, HTTPException, Security, Request, status
 from sqlalchemy.orm import Session
 from .models import Notes, get_db 
 from .schemas import CreateNote
@@ -117,3 +117,51 @@ def delete_note(note_id: int, db: Session = Depends(get_db)):
         "status": "success",
         "data": note
         }
+
+@app.patch('/notes/{note_id}/archive')
+def toggle_archive(request : Request, note_id : int, db : Session = Depends(get_db), user : dict = Depends(auth_user)):
+    note = db.query(Notes).filter(Notes.id == note_id,  Notes.user_id == user["id"]).first()
+    if not note:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+    
+    note.is_archive = not note.is_archive   
+    db.commit()
+    db.refresh(note)
+    return{
+        "message" : "Note is archived successfully,",
+        "status" : "Successs",
+        "data": note
+    }
+    
+@app.get('/notes/archived')
+def archived_notes(user : dict = Depends(auth_user), db : Session = Depends(get_db)):
+    note = db.query(Notes).filter(Notes.user_id == user["id"], Notes.is_archive == True).all()
+    return{
+        "message" : "Archived notes sucessfully.",
+        "status" : "Success",
+        "data" : note
+    }
+
+@app.patch('/notes/{note_id}/trash')
+def toggle_trash(note_id : int, db : Session = Depends(get_db), user : dict = Depends(auth_user)):
+    note = db.query(Notes).filter(Notes.id == note_id, Notes.user_id == user["id"]).first()
+    if not note:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+    
+    note.is_trash = not note.is_trash
+    db.commit()
+    db.refresh(note)
+    return{
+        "message" : "Note is trashed successfully.",
+        "status" : "Success",
+        "data" : note
+    }
+
+@app.get('/notes/trash')
+def trashed_note(user : dict = Depends(auth_user), db : Session = Depends(get_db)):
+    note = db.query(Notes).filter(Notes.user_id == user["id"], Notes.is_trash ==True).all()
+    return{
+        "message" : "Note trashed successfully.",
+        "status" : "Success",
+        "data" : note
+    }

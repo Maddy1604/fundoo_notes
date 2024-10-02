@@ -1,3 +1,4 @@
+# Importing required liberaries and moduels
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from .models import User, get_db
@@ -11,6 +12,7 @@ import jwt
 # Initialize FastAPI app
 app = FastAPI()
 
+# Simple get api with response
 @app.get("/")
 def read_root():
     '''
@@ -71,7 +73,7 @@ def register_user(request: Request, user: UserRegistration, background_tasks: Ba
         "access_token": access_token
     }
 
-# User login
+#  Post api for User login
 @app.post("/login")
 def login_user(user: UserLogin, db: Session = Depends(get_db)):
     '''
@@ -98,6 +100,7 @@ def login_user(user: UserLogin, db: Session = Depends(get_db)):
         "data": db_user.to_dict
     }
 
+# Get api for verifying user with generated acccess token
 @app.get("/verify/{token}")
 def verify_registered_user(token: str, db: Session = Depends(get_db)):
     try:
@@ -126,6 +129,9 @@ def verify_registered_user(token: str, db: Session = Depends(get_db)):
 
     except Exception:
         raise HTTPException(status_code=400, detail="Token has expired or is invalid")
+
+# Get api for creating endpoint with token which return status code success and include_in_schema = false given
+# particular route (/user/{token}) will not appear in the auto-generated documentation (Swagger UI, Redoc, etc.).
 
 @app.get("/user/{token}",status_code= 200, include_in_schema= False)
 def auth_user(token: str, db: Session = Depends(get_db)):

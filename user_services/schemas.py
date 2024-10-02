@@ -1,3 +1,7 @@
+# 1.Pydantic is a Python library used for data validation and settings management using Python type annotations.
+# 2.It allows for define data models and validation rule
+# 3.Pydantic is heavily used in FastAPI for request and response data validation, 
+#   which ensures that the data coming into or going out of your API conforms to the expected structure and type. 
 from pydantic import BaseModel, EmailStr, field_validator
 import re
 

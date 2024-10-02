@@ -1,7 +1,8 @@
+# Importing pydantic modules for validation
 from pydantic import BaseModel
 from datetime import datetime
 
-# Schema for creating new note
+# Schema for creating new note | schemas means basically structure with validating rules
 class CreateNote(BaseModel):
     
     title: str
