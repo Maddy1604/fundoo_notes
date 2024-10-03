@@ -12,4 +12,8 @@ class CreateNote(BaseModel):
     is_trash: bool= False
     reminder: datetime | None= None
     
+class CreateLable(BaseModel):
+    id : int
+    name : str
+    color : str
     

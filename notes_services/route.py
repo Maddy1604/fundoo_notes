@@ -1,21 +1,12 @@
 from fastapi import FastAPI, Depends, HTTPException, Security, Request, status
 from sqlalchemy.orm import Session
-from .models import Notes, get_db 
-from .schemas import CreateNote
+from .models import Notes, get_db, Labels
+from .schemas import CreateNote, CreateLable
 from fastapi.security import APIKeyHeader
 from .utils import auth_user
 
 # Initialize FastAPI app with dependency
 app = FastAPI(dependencies= [Security(APIKeyHeader(name= "Authorization", auto_error= False)), Depends(auth_user)])
-
-@app.get("/")
-def read_root():
-    '''
-    Discription: This is the handler function that gets called when a request is made to the root endpoint
-    Parameters: None
-    Return: A dictionary with a welcome message.
-    '''
-    return {"message": "Welcome to the Notes services API!"}
 
 # CREATE Note
 @app.post("/notes/")
@@ -138,7 +129,7 @@ def toggle_archive(request : Request, note_id : int, db : Session = Depends(get_
     A success message wiht all archied notes for respective user.
     """
     try:
-        note = db.query(Notes).filter(Notes.id == note_id,  Notes.user_id == user_id).first()
+        note = db.query(Notes).filter(Notes.id == note_id,  Notes.user_id == user_id, Notes.is_trash == False).first()
         if not note:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
         
@@ -168,6 +159,7 @@ def archived_notes(request : Request, db : Session = Depends(get_db)):
     """
     try:
         note = db.query(Notes).filter(Notes.user_id == user_id, Notes.is_archive == True).all()
+
         return{
             "message" : "Archived notes sucessfully.",
             "status" : "Success",
@@ -191,7 +183,7 @@ def toggle_trash(request : Request, note_id : int, db : Session = Depends(get_db
     A success message wiht trash notes for respective user.
     """
     try:
-        note = db.query(Notes).filter(Notes.id == note_id, Notes.user_id == user_id).first()
+        note = db.query(Notes).filter(Notes.id == note_id, Notes.user_id == user_id, Notes.is_archive == False).first()
         if not note:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
         
@@ -228,3 +220,113 @@ def trashed_note(request : Request, db : Session = Depends(get_db)):
         }
     except Exception:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty trash section")
+    
+
+@app.post('/create/lable')
+def create_lable(request :Request, lable : CreateLable, db : Session = Depends(get_db)):
+    """
+    Description : This function is call for creation of new lables in database
+    Parameters : 
+    requerst : Request type for requesting user data by authentication
+    lable : schemas is assigned for new lable creation
+    db : Database session to interact with labels database
+    """
+    # To create new lable and getting user information from request.state as user id 
+    data = lable.model_dump()
+    data.update(user_id = request.state.user["id"])
+    
+    # New lable is created and dict of data passed to the Lables model | ** is dictionary unpacking
+    new_lable = Labels(**data)
+    db.add(new_lable)
+    db.commit()
+    db.refresh(new_lable)
+    return {
+        "message": "Lable is created successfully",
+        "status": "success",
+        "data": new_lable
+    }
+
+@app.get('/get/lables')
+def get_lable(request : Request, db : Session = Depends(get_db)):
+    """
+    Description: This function is called for getting all created lables for respective user
+    Parameter:
+    request : Takes Request type 
+    db : create database session to interact with database
+    """
+    # user data gets all user information which stores in request.state.user
+    # from all information usder id is assgin with actual id of user
+    user_id = request.state.user["id"]
+
+    # db query is run to find out the lables created by respective user 
+    label = db.query(Labels).filter(Labels.user_id == user_id).all()
+
+    return{
+        "message" : "Get all lables",
+        "status" : "Success",
+        "data" : label
+    }
+
+@app.put('/lable/update/{lable_id}')
+def update_lable(request : Request, lable_id : int, update_lable : CreateLable, db : Session = Depends(get_db)):
+    """
+    Description: This finction is called for update the label using lable id 
+    Parameter:
+    request : Assign Request type
+    lable id : which is in int format
+    update lable : Take create lable scchemas
+    db : create database session to interact with database
+    """
+    try:
+        # user data gets all user information which stores in request.state.user
+        # from all information usder id is assgin with actual id of user
+        user_id = request.state.user["id"]
+        
+        # db query is run for finding out labels with lable id also user id user id from stored state
+        lable = db.query(Labels).filter(Labels.id == lable_id, Labels.user_id == user_id ).first()
+        if not lable_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lable is not found")
+        
+        # if lables is found with lable id then setting values according to ket and value pair
+        for key, value in update_lable.model_dump().items():
+            setattr(lable, key, value)
+
+        db.commit()
+        db.refresh(lable)
+        return{
+            "message" : "Lable updated successfully.",
+            "status" : "Success",
+            "data" : lable
+        }
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unathurized access")
+
+@app.delete('/lable/delete/{lable_id}')
+def delete_lable(request : Request, lable_id : int, db : Session = Depends(get_db)):
+    """
+    Description: This finction is called for delete the label using lable id 
+    Parameter:
+    request : Assign Request type
+    lable id : which is in int format
+    db : create database session to interact with database
+    """
+    try:
+        # user data gets all user information which stores in request.state.user
+        # from all information usder id is assgin with actual id of user
+        user_id = request.state.user["id"]
+
+        # db query is run for finding out labels with lable id also user id user id from stored state
+        # if not found raise exception
+        lable = db.query(Labels).filter(Labels.id == lable_id, Labels.user_id == user_id).first()
+        if not lable_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Lable with {lable_id} this id not found")
+        
+        db.delete(lable)
+        db.commit()
+        return{
+            "message" : "Lable is deleted sucessfully.",
+            "status" : "Success",
+            "data" : lable
+        }
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized acess")

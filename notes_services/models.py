@@ -1,6 +1,6 @@
 # Importing required liberaries and modules and settings
 
-from sqlalchemy import Column, BigInteger, String, Boolean, DateTime, Text
+from sqlalchemy import Column, BigInteger, String, Boolean, DateTime, Text, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
@@ -34,5 +34,13 @@ class Notes(Base):
     is_trash = Column(Boolean, default=False, index=True)
     reminder = Column(DateTime, nullable=True)
     user_id = Column(BigInteger, nullable=False, index=True)
+
+class Labels(Base):
+    __tablename__ = "labels"
+
+    id = Column(Integer, primary_key=True, index=True, nullable=False)
+    name = Column(String, nullable=True)
+    color = Column(String, nullable=True)
+    user_id = Column(BigInteger, index=True, nullable=False)
 
     
