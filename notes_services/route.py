@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from .models import Notes, get_db, Labels
 from .schemas import CreateNote, CreateLable
 from fastapi.security import APIKeyHeader
-from .utils import auth_user, JwtUtils
+from .utils import auth_user, JwtUtils, JwtUtilsLables
 
 
 # Initialize FastAPI app with dependency
@@ -28,7 +28,9 @@ def create_note(request: Request, note: CreateNote, db: Session = Depends(get_db
     db.add(new_note)
     db.commit()
     db.refresh(new_note)
-    JwtUtils.save(key=f"user_{request.state.user['id']}", field=f"note_{new_note.id}", value=new_note.to_dict)
+
+    # Importing class for create and store notes in this it takes name:user_id(str), key:note_id and value:note data
+    JwtUtils.save(name=f"user_{request.state.user['id']}", key=f"note_{new_note.id}", value=new_note.to_dict)
     
     return {
         "message": "Note created successfully",
@@ -47,26 +49,28 @@ def get_notes(request: Request,  db: Session = Depends(get_db)):
     Return: 
     A list of notes within the given range (based on skip and limit).
     '''
-    #print(request.state.user)
-    user_id = request.state.user.get("id")
+    # Assigning user id which is stored in request state to user_id
+    user_id = request.state.user["id"]
 
-    cached_note = JwtUtils.get(key=user_id)
+    # By using redis calss geting name with property of user_id in the string format
+    cached_note = JwtUtils.get(name=f"user_{user_id}")
 
     # Query notes that belong to the authenticated user
-    
-    # notes = db.query(Notes).filter(Notes.user_id == user_id).all()
+    notes = db.query(Notes).filter(Notes.user_id == user_id).all()
     
     
     return {
         "message" : "Get all notes",    
         "status" : "Success",
-        "data" : cached_note
+        "data" : cached_note,
+        "new message" : "data in database", 
+        "data in db" : notes
     }
 
 
 # UPDATE Note
 @app.put("/notes/{note_id}")
-def update_note(note_id: int, updated_note: CreateNote, db: Session = Depends(get_db)):
+def update_note(request:Request, note_id: int, updated_note: CreateNote, db: Session = Depends(get_db)):
     '''
     Description: 
     This function updates an existing note's details by its ID. If not found, raises a 404 error.
@@ -77,19 +81,27 @@ def update_note(note_id: int, updated_note: CreateNote, db: Session = Depends(ge
     Return: 
     The updated note object after saving the changes.
     '''
-    note = db.query(Notes).filter(Notes.id == note_id).first()
+    # Assigning user id which is stored in request state to user_id
+    user_id = request.state.user["id"]
+
+    # for update note finding note based on note is and user id is correct it will update note if note then raise exception
+    note = db.query(Notes).filter(Notes.id == note_id, Notes.user_id == user_id).first()
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
     
+    # Based on key and values pair data is updated 
     for key, value in updated_note.model_dump().items():
         setattr(note, key, value)
     
     db.commit()
     db.refresh(note)
+
+    # Assigning class for update notes in this it takes name:user_id(str), key:note_id and value:note data
+    put_note = JwtUtils.put(name=f"user_{user_id}", key=f"note_{note_id}", value=note.to_dict)
     return {
         "message": "Note updated successfully",
         "status": "success",
-        "data": note
+        "data": put_note
     }
 
 # DELETE Note
@@ -104,18 +116,31 @@ def delete_note(request:Request, note_id: int, db: Session = Depends(get_db)):
     Return: 
     A success message confirming the deletion of the note.
     '''
+    # Assigning user id which is stored in request state to user_id
     user_id = request.state.user["id"]
 
-    note = db.query(Notes).filter(Notes.id == note_id).first()
-    JwtUtils(id=f"user_{user_id}", data=f"note_{note_id}", value=note.to_dict)
+    # For deletetion purpose it finds the note based on note_ id and user_id respectively both
+    note = db.query(Notes).filter(Notes.id == note_id, Notes.user_id == user_id).first()
+
+    # Assigning class for delete notes in this it takes name:user_id(str), key:note_id
+    del_cache_note = JwtUtils.delete(name=f"user_{user_id}", key=f"note_{note_id}")
+
+    # If cache note is not found then it will raise exception
+    if not del_cache_note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    
+    # If note is not found in database it will rasie exception
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
     
     db.delete(note)
     db.commit()
+
     return {
         "message": "Note deleted successfully!",
-        "status": "success",
+        "source" : "From Cache",
+        "data" : del_cache_note,
+        "source": "From Database",
         "data": note
         }
 
@@ -133,12 +158,15 @@ def toggle_archive(request : Request, note_id : int, db : Session = Depends(get_
     Return: 
     A success message wiht all archied notes for respective user.
     """
+    # Assigning user id which is stored in request state to user_id
     user_id = request.state.user["id"]
     try:
+        # Before archiving note it will check note with note id, user id and also check that note should note in trash 
         note = db.query(Notes).filter(Notes.id == note_id,  Notes.user_id == user_id, Notes.is_trash == False).first()
         if not note:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
         
+        # if note is not archive is aasigned to archived_notes  
         note.is_archive = not note.is_archive   
         db.commit()
         db.refresh(note)
@@ -162,8 +190,10 @@ def archived_notes(request : Request, db : Session = Depends(get_db)):
     Return: 
     A success message conformation and show all archived notes.
     """
+    # Assigning user id which is stored in request state to user_id
     user_id = request.state.user["id"]
     try:
+        # To get the archived notes it will check with note id and user id and note should be in archived section
         note = db.query(Notes).filter(Notes.user_id == user_id, Notes.is_archive == True).all()
 
         return{
@@ -187,8 +217,10 @@ def toggle_trash(request : Request, note_id : int, db : Session = Depends(get_db
     Return: 
     A success message wiht trash notes for respective user.
     """
+    # Assigning user id which is stored in request state to user_id
     user_id = request.state.user["id"]
     try:
+        # Before putting note in trash it will check note with note id, user id and also check that note should note in archived 
         note = db.query(Notes).filter(Notes.id == note_id, Notes.user_id == user_id, Notes.is_archive == False).first()
         if not note:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
@@ -216,8 +248,10 @@ def trashed_note(request : Request, db : Session = Depends(get_db)):
     Return: 
     A success message conformation and show all trash notes.
     """
+    # Assigning user id which is stored in request state to user_id
     user_id = request.state.user["id"]
     try:
+        # To get the trash notes it will check with note id and user id and note should be in trash section
         note = db.query(Notes).filter(Notes.user_id == user_id, Notes.is_trash ==True).all()
         return{
             "message" : "Note trashed successfully.",
@@ -227,7 +261,7 @@ def trashed_note(request : Request, db : Session = Depends(get_db)):
     except Exception:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty trash section")
     
-
+# Creation of lables
 @app.post('/create/lable')
 def create_lable(request :Request, lable : CreateLable, db : Session = Depends(get_db)):
     """
@@ -246,10 +280,14 @@ def create_lable(request :Request, lable : CreateLable, db : Session = Depends(g
     db.add(new_lable)
     db.commit()
     db.refresh(new_lable)
+    new_cache_lable = JwtUtilsLables.save(key=f"user_{request.state.user['id']}", field=f"lable_{new_lable.id}", value=new_lable.to_dict)
+
     return {
         "message": "Lable is created successfully",
-        "status": "success",
-        "data": new_lable
+        "source": "from database",
+        "data": new_lable,
+        "source" : "from cache",
+        "data" : new_cache_lable
     }
 
 @app.get('/get/lables')
@@ -264,14 +302,22 @@ def get_lable(request : Request, db : Session = Depends(get_db)):
     # from all information usder id is assgin with actual id of user
     user_id = request.state.user["id"]
 
+    # By using redis calss geting name with property of user_id in the string format
+    caches_lables = JwtUtilsLables.get(name=f"user_{user_id}")
+
+    if caches_lables:
+        return {"message": "Notes in cached data",
+                "data" : caches_lables}
+
     # db query is run to find out the lables created by respective user 
     label = db.query(Labels).filter(Labels.user_id == user_id).all()
 
-    return{
-        "message" : "Get all lables",
-        "status" : "Success",
-        "data" : label
-    }
+    if label:
+        return{
+            "message" : "Get all lables",
+            "source" : "from caches",
+            "data" : label
+        }
 
 @app.put('/lable/update/{lable_id}')
 def update_lable(request : Request, lable_id : int, update_lable : CreateLable, db : Session = Depends(get_db)):
@@ -299,10 +345,14 @@ def update_lable(request : Request, lable_id : int, update_lable : CreateLable, 
 
         db.commit()
         db.refresh(lable)
+
+        put_lable = JwtUtilsLables.put(name=f"user_{user_id}", key=f"lable_{lable_id}", value=lable.to_dict)
         return{
             "message" : "Lable updated successfully.",
-            "status" : "Success",
-            "data" : lable
+            "Source" : "From badabase",
+            "data" : lable,
+            "source" : "From cache",
+            "data" : put_lable
         }
     except Exception:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unathurized access")
@@ -324,6 +374,15 @@ def delete_lable(request : Request, lable_id : int, db : Session = Depends(get_d
         # db query is run for finding out labels with lable id also user id user id from stored state
         # if not found raise exception
         lable = db.query(Labels).filter(Labels.id == lable_id, Labels.user_id == user_id).first()
+
+        # Assigning class for delete lable in this it takes name:user_id(str), key:lable_id
+        del_cache_lable = JwtUtilsLables.delete(name=f"user_{user_id}", key=f"lable_{lable_id}")
+
+        # If lable is not there then it will raiseexception
+        if not del_cache_lable:
+            raise HTTPException(status_code=404, detail="Note not found")
+
+        # If lable is is not there then it will rasie exception
         if not lable_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Lable with {lable_id} this id not found")
         

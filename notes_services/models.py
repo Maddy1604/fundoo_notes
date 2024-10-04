@@ -42,9 +42,12 @@ class Notes(Base):
 class Labels(Base):
     __tablename__ = "labels"
 
-    id = Column(Integer, primary_key=True, index=True, nullable=False)
+    id = Column(Integer, primary_key=True, index=True, nullable=False, autoincrement=True)
     name = Column(String, nullable=True)
     color = Column(String, nullable=True)
     user_id = Column(BigInteger, index=True, nullable=False)
 
     
+    @property
+    def to_dict(self):
+        return {col.name: getattr(self, col.name) for col in self.__table__.columns}
