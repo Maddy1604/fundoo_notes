@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 from .models import Notes, get_db, Labels
 from .schemas import CreateNote, CreateLable
 from fastapi.security import APIKeyHeader
-from .utils import auth_user
+from .utils import auth_user, JwtUtils
+
 
 # Initialize FastAPI app with dependency
 app = FastAPI(dependencies= [Security(APIKeyHeader(name= "Authorization", auto_error= False)), Depends(auth_user)])
@@ -27,6 +28,8 @@ def create_note(request: Request, note: CreateNote, db: Session = Depends(get_db
     db.add(new_note)
     db.commit()
     db.refresh(new_note)
+    JwtUtils.save(key=f"user_{request.state.user['id']}", field=f"note_{new_note.id}", value=new_note.to_dict)
+    
     return {
         "message": "Note created successfully",
         "status": "success",
@@ -45,18 +48,19 @@ def get_notes(request: Request,  db: Session = Depends(get_db)):
     A list of notes within the given range (based on skip and limit).
     '''
     #print(request.state.user)
-    user_data = request.state.user
-    
-    # Get user_id from response
-    user_id = user_data["id"] 
-    
+    user_id = request.state.user.get("id")
+
+    cached_note = JwtUtils.get(key=user_id)
+
     # Query notes that belong to the authenticated user
-    notes = db.query(Notes).filter(Notes.user_id == user_id).all()
+    
+    # notes = db.query(Notes).filter(Notes.user_id == user_id).all()
+    
     
     return {
-        "message" : "Get all notes",
+        "message" : "Get all notes",    
         "status" : "Success",
-        "data" : notes
+        "data" : cached_note
     }
 
 
@@ -90,7 +94,7 @@ def update_note(note_id: int, updated_note: CreateNote, db: Session = Depends(ge
 
 # DELETE Note
 @app.delete("/notes/{note_id}")
-def delete_note(note_id: int, db: Session = Depends(get_db)):
+def delete_note(request:Request, note_id: int, db: Session = Depends(get_db)):
     '''
     Description: 
     This function deletes a note by its ID. If not found, raises a 404 error.
@@ -100,8 +104,10 @@ def delete_note(note_id: int, db: Session = Depends(get_db)):
     Return: 
     A success message confirming the deletion of the note.
     '''
+    user_id = request.state.user["id"]
 
     note = db.query(Notes).filter(Notes.id == note_id).first()
+    JwtUtils(id=f"user_{user_id}", data=f"note_{note_id}", value=note.to_dict)
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
     
@@ -116,7 +122,6 @@ def delete_note(note_id: int, db: Session = Depends(get_db)):
 # Archive notes by note id
 @app.patch('/notes/archive/{note_id}')
 def toggle_archive(request : Request, note_id : int, db : Session = Depends(get_db)):
-    user_id = request.state.user["id"]
     """
     Description: 
     This function archives the note by its ID. If not found, raises a 404 error.
@@ -128,6 +133,7 @@ def toggle_archive(request : Request, note_id : int, db : Session = Depends(get_
     Return: 
     A success message wiht all archied notes for respective user.
     """
+    user_id = request.state.user["id"]
     try:
         note = db.query(Notes).filter(Notes.id == note_id,  Notes.user_id == user_id, Notes.is_trash == False).first()
         if not note:
@@ -147,7 +153,6 @@ def toggle_archive(request : Request, note_id : int, db : Session = Depends(get_
 # Get all archived note    
 @app.get('/notes/archived')
 def archived_notes(request : Request, db : Session = Depends(get_db)):
-    user_id = request.state.user["id"]
     """
     Description: 
     This function shows archive notes. If not found, raises a 400 error.
@@ -157,6 +162,7 @@ def archived_notes(request : Request, db : Session = Depends(get_db)):
     Return: 
     A success message conformation and show all archived notes.
     """
+    user_id = request.state.user["id"]
     try:
         note = db.query(Notes).filter(Notes.user_id == user_id, Notes.is_archive == True).all()
 
@@ -171,7 +177,6 @@ def archived_notes(request : Request, db : Session = Depends(get_db)):
 # Trash notes by notes id
 @app.patch('/notes/trash/{note_id}')
 def toggle_trash(request : Request, note_id : int, db : Session = Depends(get_db)):
-    user_id = request.state.user["id"]
     """
     Description: 
     This function trash the notes by its ID. If not found, raises a 404 error.
@@ -182,6 +187,7 @@ def toggle_trash(request : Request, note_id : int, db : Session = Depends(get_db
     Return: 
     A success message wiht trash notes for respective user.
     """
+    user_id = request.state.user["id"]
     try:
         note = db.query(Notes).filter(Notes.id == note_id, Notes.user_id == user_id, Notes.is_archive == False).first()
         if not note:
@@ -201,7 +207,6 @@ def toggle_trash(request : Request, note_id : int, db : Session = Depends(get_db
 # Get all trash notes
 @app.get('/notes/trash')
 def trashed_note(request : Request, db : Session = Depends(get_db)):
-    user_id = request.state.user["id"]
     """
     Description: 
     This function shows trash notes. If not found, raises a 400 error.
@@ -211,6 +216,7 @@ def trashed_note(request : Request, db : Session = Depends(get_db)):
     Return: 
     A success message conformation and show all trash notes.
     """
+    user_id = request.state.user["id"]
     try:
         note = db.query(Notes).filter(Notes.user_id == user_id, Notes.is_trash ==True).all()
         return{

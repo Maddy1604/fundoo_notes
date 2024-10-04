@@ -4,7 +4,6 @@ from datetime import datetime
 
 # Schema for creating new note | schemas means basically structure with validating rules
 class CreateNote(BaseModel):
-    id : int
     title: str
     description: str
     color: str
