@@ -4,6 +4,7 @@ from .models import Notes, get_db, Labels
 from .schemas import CreateNote, CreateLable
 from fastapi.security import APIKeyHeader
 from .utils import auth_user, JwtUtils, JwtUtilsLables
+from loguru import logger
 
 
 # Initialize FastAPI app with dependency
@@ -61,7 +62,6 @@ def get_notes(request: Request,  db: Session = Depends(get_db)):
         source = "Database"
         notes = db.query(Notes).filter(Notes.user_id == user_id).all()
     
-    
     return {
         "message" : "Get all notes",    
         "status" : "Success",
@@ -89,6 +89,7 @@ def update_note(request:Request, note_id: int, updated_note: CreateNote, db: Ses
     # for update note finding note based on note is and user id is correct it will update note if note then raise exception
     note = db.query(Notes).filter(Notes.id == note_id, Notes.user_id == user_id).first()
     if not note:
+        logger.info("Note not found")
         raise HTTPException(status_code=404, detail="Note not found")
     
     # Based on key and values pair data is updated 
@@ -129,6 +130,7 @@ def delete_note(request:Request, note_id: int, db: Session = Depends(get_db)):
     
     # If note is not found in database it will rasie exception
     if not note:
+        logger.info("Note not found")
         raise HTTPException(status_code=404, detail="Note not found")
     
     db.delete(note)
@@ -159,6 +161,7 @@ def toggle_archive(request : Request, note_id : int, db : Session = Depends(get_
         # Before archiving note it will check note with note id, user id and also check that note should note in trash 
         note = db.query(Notes).filter(Notes.id == note_id,  Notes.user_id == user_id, Notes.is_trash == False).first()
         if not note:
+            logger.info("Notes not found")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
         
         # if note is not archive is aasigned to archived_notes  
@@ -171,6 +174,7 @@ def toggle_archive(request : Request, note_id : int, db : Session = Depends(get_
             "data": note
         }
     except Exception:
+        logger.exception("Unauthorized user access")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unathorized user")
 
 # Get all archived note    
@@ -197,6 +201,7 @@ def archived_notes(request : Request, db : Session = Depends(get_db)):
             "data" : note
         }
     except Exception:
+        logger.exception("Nothing to archived")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty archived section")
 
 # Trash notes by notes id
@@ -218,6 +223,7 @@ def toggle_trash(request : Request, note_id : int, db : Session = Depends(get_db
         # Before putting note in trash it will check note with note id, user id and also check that note should note in archived 
         note = db.query(Notes).filter(Notes.id == note_id, Notes.user_id == user_id, Notes.is_archive == False).first()
         if not note:
+            logger.info("Note not found")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
         
         note.is_trash = not note.is_trash
@@ -229,6 +235,7 @@ def toggle_trash(request : Request, note_id : int, db : Session = Depends(get_db
             "data" : note
         }
     except Exception:
+        logger.exception("User not found")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
 
 # Get all trash notes
@@ -254,6 +261,7 @@ def trashed_note(request : Request, db : Session = Depends(get_db)):
             "data" : note
         }
     except Exception:
+        logger.exception("Nothing to trash")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty trash section")
     
 # Creation of lables
@@ -330,6 +338,7 @@ def update_lable(request : Request, lable_id : int, update_lable : CreateLable, 
         # db query is run for finding out labels with lable id also user id user id from stored state
         lable = db.query(Labels).filter(Labels.id == lable_id, Labels.user_id == user_id ).first()
         if not lable_id:
+            logger.info("Label is not found")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lable is not found")
         
         # if lables is found with lable id then setting values according to ket and value pair
@@ -346,6 +355,7 @@ def update_lable(request : Request, lable_id : int, update_lable : CreateLable, 
             "data" : put_lable
         }
     except Exception:
+        logger.exception("Unauthorized access")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unathurized access")
 
 @app.delete('/lable/delete/{lable_id}')
@@ -371,6 +381,7 @@ def delete_lable(request : Request, lable_id : int, db : Session = Depends(get_d
 
         # If lable is is not there then it will rasie exception
         if not lable_id:
+            logger.info("Lable is not found")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Lable with {lable_id} this id not found")
         
         db.delete(lable)
@@ -380,4 +391,5 @@ def delete_lable(request : Request, lable_id : int, db : Session = Depends(get_d
             "status" : "Success"
         }
     except Exception:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized acess")      
+        logger.exception("Unauthorized access")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized access")      
