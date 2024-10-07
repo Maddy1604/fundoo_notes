@@ -12,7 +12,6 @@ class CreateNote(BaseModel):
     reminder: datetime | None= None
     
 class CreateLable(BaseModel):
-    id : int
     name : str
     color : str
     
