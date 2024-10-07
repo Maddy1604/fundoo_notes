@@ -1,4 +1,8 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from loguru import logger
+
+logger.remove(0)
+logger.add("logs/file.log", level="INFO", rotation="100 MB")
 
 class Settings(BaseSettings):
     model_config=SettingsConfigDict(env_file='.env', extra="ignore")
@@ -22,4 +26,9 @@ class Settings(BaseSettings):
     MAIL_SSL_TLS : bool = False
     USE_CREDENTIALS : bool = True
     VALIDATE_CERTS : bool = True
+
+    # For user_services address 
+    AUTHORIZATION : str
+    CELERY_PATH : str
+
 settings = Settings()
