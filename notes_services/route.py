@@ -53,18 +53,20 @@ def get_notes(request: Request,  db: Session = Depends(get_db)):
     user_id = request.state.user["id"]
 
     # By using redis calss geting name with property of user_id in the string format
-    cached_note = JwtUtils.get(name=f"user_{user_id}")
+    notes = JwtUtils.get(name=f"user_{user_id}")
+    source = "cache"
 
     # Query notes that belong to the authenticated user
-    notes = db.query(Notes).filter(Notes.user_id == user_id).all()
+    if not notes:
+        source = "Database"
+        notes = db.query(Notes).filter(Notes.user_id == user_id).all()
     
     
     return {
         "message" : "Get all notes",    
         "status" : "Success",
-        "data" : cached_note,
-        "new message" : "data in database", 
-        "data in db" : notes
+        "source" : source,
+        "data" : notes
     }
 
 
@@ -97,11 +99,11 @@ def update_note(request:Request, note_id: int, updated_note: CreateNote, db: Ses
     db.refresh(note)
 
     # Assigning class for update notes in this it takes name:user_id(str), key:note_id and value:note data
-    put_note = JwtUtils.put(name=f"user_{user_id}", key=f"note_{note_id}", value=note.to_dict)
+    JwtUtils.save(name=f"user_{user_id}", key=f"note_{note_id}", value=note.to_dict)
     return {
         "message": "Note updated successfully",
         "status": "success",
-        "data": put_note
+        "data": note
     }
 
 # DELETE Note
@@ -123,11 +125,7 @@ def delete_note(request:Request, note_id: int, db: Session = Depends(get_db)):
     note = db.query(Notes).filter(Notes.id == note_id, Notes.user_id == user_id).first()
 
     # Assigning class for delete notes in this it takes name:user_id(str), key:note_id
-    del_cache_note = JwtUtils.delete(name=f"user_{user_id}", key=f"note_{note_id}")
-
-    # If cache note is not found then it will raise exception
-    if not del_cache_note:
-        raise HTTPException(status_code=404, detail="Note not found")
+    JwtUtils.delete(name=f"user_{user_id}", key=f"note_{note_id}")
     
     # If note is not found in database it will rasie exception
     if not note:
@@ -138,10 +136,7 @@ def delete_note(request:Request, note_id: int, db: Session = Depends(get_db)):
 
     return {
         "message": "Note deleted successfully!",
-        "source" : "From Cache",
-        "data" : del_cache_note,
-        "source": "From Database",
-        "data": note
+        "source" : "Success"
         }
 
 # Archive notes by note id
@@ -280,14 +275,13 @@ def create_lable(request :Request, lable : CreateLable, db : Session = Depends(g
     db.add(new_lable)
     db.commit()
     db.refresh(new_lable)
-    new_cache_lable = JwtUtilsLables.save(key=f"user_{request.state.user['id']}", field=f"lable_{new_lable.id}", value=new_lable.to_dict)
+
+    JwtUtilsLables.save(name=f"user_{request.state.user['id']}", key=f"lable_{new_lable.id}", value=new_lable.to_dict)
 
     return {
         "message": "Lable is created successfully",
-        "source": "from database",
-        "data": new_lable,
-        "source" : "from cache",
-        "data" : new_cache_lable
+        "source": "Success",
+        "data": new_lable
     }
 
 @app.get('/get/lables')
@@ -303,20 +297,19 @@ def get_lable(request : Request, db : Session = Depends(get_db)):
     user_id = request.state.user["id"]
 
     # By using redis calss geting name with property of user_id in the string format
-    caches_lables = JwtUtilsLables.get(name=f"user_{user_id}")
+    labels = JwtUtilsLables.get(name=f"user_{user_id}")
+    
+    source = "cache"
 
-    if caches_lables:
-        return {"message": "Notes in cached data",
-                "data" : caches_lables}
+    if not labels:
+        source = "Database"
+        labels = db.query(Labels).filter(Labels.user_id == user_id).all()
 
-    # db query is run to find out the lables created by respective user 
-    label = db.query(Labels).filter(Labels.user_id == user_id).all()
-
-    if label:
-        return{
+    return{
             "message" : "Get all lables",
-            "source" : "from caches",
-            "data" : label
+            "status" : "success",
+            "source" : source,
+            "data" : labels
         }
 
 @app.put('/lable/update/{lable_id}')
@@ -346,12 +339,10 @@ def update_lable(request : Request, lable_id : int, update_lable : CreateLable, 
         db.commit()
         db.refresh(lable)
 
-        put_lable = JwtUtilsLables.put(name=f"user_{user_id}", key=f"lable_{lable_id}", value=lable.to_dict)
+        put_lable = JwtUtilsLables.save(name=f"user_{user_id}", key=f"lable_{lable_id}", value=lable.to_dict)
         return{
             "message" : "Lable updated successfully.",
-            "Source" : "From badabase",
-            "data" : lable,
-            "source" : "From cache",
+            "Source" : "Success",
             "data" : put_lable
         }
     except Exception:
@@ -376,11 +367,7 @@ def delete_lable(request : Request, lable_id : int, db : Session = Depends(get_d
         lable = db.query(Labels).filter(Labels.id == lable_id, Labels.user_id == user_id).first()
 
         # Assigning class for delete lable in this it takes name:user_id(str), key:lable_id
-        del_cache_lable = JwtUtilsLables.delete(name=f"user_{user_id}", key=f"lable_{lable_id}")
-
-        # If lable is not there then it will raiseexception
-        if not del_cache_lable:
-            raise HTTPException(status_code=404, detail="Note not found")
+        JwtUtilsLables.delete(name=f"user_{user_id}", key=f"lable_{lable_id}")
 
         # If lable is is not there then it will rasie exception
         if not lable_id:
@@ -390,8 +377,7 @@ def delete_lable(request : Request, lable_id : int, db : Session = Depends(get_d
         db.commit()
         return{
             "message" : "Lable is deleted sucessfully.",
-            "status" : "Success",
-            "data" : lable
+            "status" : "Success"
         }
     except Exception:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized acess")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized acess")      
