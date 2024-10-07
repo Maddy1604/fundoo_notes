@@ -1,5 +1,5 @@
 # Importing required liberaries and moduels
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request
+from fastapi import FastAPI, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from .models import User, get_db
 from .schemas import UserRegistration, UserLogin 
@@ -7,7 +7,8 @@ from .utils import hash_password, verify_password, create_token, create_tokens
 from .email import send_verification_email
 from settings import settings
 import jwt
-
+from tasks import send_mail 
+from loguru import logger
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -24,7 +25,7 @@ def read_root():
 
 # Register a new user
 @app.post("/register")
-def register_user(request: Request, user: UserRegistration, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def register_user(request: Request, user: UserRegistration, db: Session = Depends(get_db)):
     '''
     Discription: Registers a new user after validating the input, checking if the user exists, 
     hashing the password, and storing the user in the database.
@@ -39,6 +40,7 @@ def register_user(request: Request, user: UserRegistration, background_tasks: Ba
     # Check if the user already exists by email
     existing_user = db.query(User).filter(User.email == user.email).first()
     if existing_user:
+        logger.info("Email already registered")
         raise HTTPException(status_code=400, detail="Email already registered")
 
     # Hash the user's password
@@ -62,9 +64,8 @@ def register_user(request: Request, user: UserRegistration, background_tasks: Ba
 
     # Generate verification link using request url_for function taking token as access_token 
     verify_link = request.url_for('verify_registered_user', token= access_token)
-        
-    # Send verification email using the utility function
-    background_tasks.add_task(send_verification_email, db_user.email, verify_link)
+
+    send_mail.delay(db_user.email, str(verify_link))
     
     return {
         "message": "User registered successfully",
@@ -87,6 +88,7 @@ def login_user(user: UserLogin, db: Session = Depends(get_db)):
     # Check if the user exists in the database by email
     db_user = db.query(User).filter(User.email == user.email).first()
     if not db_user or not verify_password(user.password, db_user.password):
+        logger.info("Invalid email or password")
         raise HTTPException(status_code=400, detail="Invalid email or password")
 
     # Generate both JWT tokens
@@ -109,6 +111,7 @@ def verify_registered_user(token: str, db: Session = Depends(get_db)):
         email = payload.get("sub")
 
         if email is None:
+            logger.info("Invalid token")
             raise HTTPException(status_code=400, detail="Invalid token")
 
         # Fetch the user from the database
@@ -128,6 +131,7 @@ def verify_registered_user(token: str, db: Session = Depends(get_db)):
         return {"message": "Email verified successfully!"}
 
     except Exception:
+        logger.exception("Token is expired or It is invalid")
         raise HTTPException(status_code=400, detail="Token has expired or is invalid")
 
 # Get api for creating endpoint with token which return status code success and include_in_schema = false given
@@ -141,11 +145,13 @@ def auth_user(token: str, db: Session = Depends(get_db)):
         # print(payload)
         user_id: int = payload.get("user_id")
         if user_id is None:
+            logger.info("Invalid User ID")
             raise HTTPException(status_code=401, detail="Invalid User ID")
         
         # Fetch user details from the database based on user_id from token
         db_user = db.query(User).filter(User.id == user_id).first()
         if not db_user:
+            logger.info("User not found")
             raise HTTPException(status_code=404, detail= "User not found")
         
         # Return user details in JSON format
@@ -155,4 +161,5 @@ def auth_user(token: str, db: Session = Depends(get_db)):
             "data": db_user
         }
     except Exception:
+        logger.exception("Invalid token")
         raise HTTPException(status_code=401, detail="Invalid token")
