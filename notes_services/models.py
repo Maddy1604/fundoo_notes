@@ -46,7 +46,6 @@ class Labels(Base):
     name = Column(String, nullable=True)
     color = Column(String, nullable=True)
     user_id = Column(BigInteger, index=True, nullable=False)
-
     
     @property
     def to_dict(self):
