@@ -32,8 +32,8 @@ class JwtUtils():
         field : for note id
         value : note data
         """
-        cls.r.hset(name, key, json.dumps(value, default=str))
-        return True
+        data = cls.r.hset(name, key, json.dumps(value, default=str))
+        return data
     
     @classmethod
     def get(cls, name):
@@ -43,21 +43,9 @@ class JwtUtils():
         cls: By default it tkes
         name : take user id and gives all notes from particular id
         """
-        note = cls.r.hgetall(name)
-        return note
-    
-    @classmethod
-    def put(cls, name, key, value):
-        """
-        Description : Thus function is called for updating values in note caches
-        Parameter:
-        cls: By default it tkes
-        name: for user id
-        key : for note id
-        value : note data
-        """
-        put_note = cls.r.hset(name, key, json.dumps(value, default=str))
-        return put_note
+        data = cls.r.hgetall(name)
+        return [json.loads(x) for x in data.values()]
+
 
     @classmethod
     def delete(cls, name, key):
@@ -72,55 +60,8 @@ class JwtUtils():
         return del_note
     
 # class for creating and storing caches of lables data in database = 1
-class JwtUtilsLables():
+class JwtUtilsLables(JwtUtils):
     # staring rediis chaching with configuration and database set at 1
     r = redis.Redis(host='localhost', port=6379, decode_responses=True, db = 1) 
 
-    @classmethod
-    def save(cls, name, key, value):
-        """
-        Description : Thus function is called for saving values in lable caches
-        Parameter:
-        cls: By default it tkes
-        key: for user id
-        field : for lable id
-        value : lable data
-        """
-        cls.r.hset(name, key, json.dumps(value, default=str))
-        return True
-    
-    @classmethod
-    def get(cls, name):
-        """
-        Description : Thus function is called for getting values in lable caches
-        Parameter:
-        cls: By default it tkes
-        name : take user id and gives all lables from particular id
-        """
-        note = cls.r.hgetall(name)
-        return note
-    
-    @classmethod
-    def put(cls, name, key, value):
-        """
-        Description : Thus function is called for updating values in lable caches
-        Parameter:
-        cls: By default it tkes
-        name: for user id
-        key : for lable id
-        value : lable data
-        """
-        put_note = cls.r.hset(name, key, json.dumps(value, default=str))
-        return put_note
-
-    @classmethod
-    def delete(cls, name, key):
-        """
-        Description : Thus function is called for saving values in lable caches
-        Parameter:
-        cls: By default it tkes
-        name: for user id
-        ket : for lable id
-        """
-        del_note = cls.r.hdel(name, key)
-        return del_note
+   
