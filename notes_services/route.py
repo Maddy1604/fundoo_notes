@@ -5,6 +5,9 @@ from .schemas import CreateNote, CreateLable
 from fastapi.security import APIKeyHeader
 from .utils import auth_user, JwtUtils, JwtUtilsLables
 from loguru import logger
+from celery.schedules import crontab
+from redbeat import RedBeatSchedulerEntry as Task
+from tasks import celery, send_reminder_email
 
 
 # Initialize FastAPI app with dependency
@@ -12,32 +15,62 @@ app = FastAPI(dependencies= [Security(APIKeyHeader(name= "Authorization", auto_e
 
 # CREATE Note
 @app.post("/notes/")
+@app.post("/notes/")
 def create_note(request: Request, note: CreateNote, db: Session = Depends(get_db)):
     '''
     Description: 
     This function creates a new note with the provided title, description and color. The user_id is hardcoded.
     Parameters: 
-    note: A `CreateNote` schema instance containing the note details.
+    note: A CreateNote schema instance containing the note details.
     db: The database session to interact with the database.
     Return: 
     The newly created note instance with its details.
 '''
-    data = note.model_dump()
-    data.update(user_id = request.state.user["id"])
-    
-    new_note = Notes(**data)
-    db.add(new_note)
-    db.commit()
-    db.refresh(new_note)
+    try:
+        data = note.model_dump()
+        data.update(user_id = request.state.user["id"])
 
-    # Importing class for create and store notes in this it takes name:user_id(str), key:note_id and value:note data
-    JwtUtils.save(name=f"user_{request.state.user['id']}", key=f"note_{new_note.id}", value=new_note.to_dict)
+        # Fetching user email from request state
+        user_email = request.state.user["email"]
+        
+        new_note = Notes(**data)
+        db.add(new_note)
+        db.commit()
+        db.refresh(new_note)
+
+        # Importing class for create and store notes in this it takes name:user_id(str), key:note_id and value:note data
+        JwtUtils.save(name=f"user_{request.state.user['id']}", key=f"note_{new_note.id}", value=new_note.to_dict)
     
-    return {
-        "message": "Note created successfully",
-        "status": "success",
-        "data": new_note
-    }
+        if new_note.reminder:
+            
+            # Reminder timestamp as a string
+            reminder_str = new_note.reminder
+            task_name = f"reminder_task_{new_note.id}"
+            
+            logger.info(f"schedule creater")
+            entry = Task(
+                name=task_name,
+                task= 'tasks.reminder_email', 
+                schedule= crontab(
+                    minute= reminder_str.minute, 
+                    hour= reminder_str.hour,
+                    day_of_month= reminder_str.day,
+                    month_of_year= reminder_str.month
+                ),
+                app= celery,
+                args=(user_email, new_note.id, new_note.title)
+            )
+            entry.save()
+
+        logger.info(f"Note is created successfully with Note_id: {new_note.id}")
+        return {
+            "message": "Note created successfully",
+            "status": "success",
+            "data": new_note
+        }
+    except Exception:
+        logger.error("Failed to create new note")
+        raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="Unable to create the note")
 
 # GET all notes
 @app.get("/notes/")
@@ -50,24 +83,38 @@ def get_notes(request: Request,  db: Session = Depends(get_db)):
     Return: 
     A list of notes within the given range (based on skip and limit).
     '''
-    # Assigning user id which is stored in request state to user_id
-    user_id = request.state.user["id"]
+    try:
+        # Assigning user id which is stored in request state to user_id
+        user_id = request.state.user["id"]
 
-    # By using redis calss geting name with property of user_id in the string format
-    notes = JwtUtils.get(name=f"user_{user_id}")
-    source = "cache"
+        # By using redis calss geting name with property of user_id in the string format
+        notes = JwtUtils.get(name=f"user_{user_id}")
+        source = "cache"
 
-    # Query notes that belong to the authenticated user
-    if not notes:
-        source = "Database"
-        notes = db.query(Notes).filter(Notes.user_id == user_id).all()
-    
-    return {
-        "message" : "Get all notes",    
-        "status" : "Success",
-        "source" : source,
-        "data" : notes
-    }
+        # Query notes that belong to the authenticated user
+        if not notes:
+            source = "Database"
+            notes = db.query(Notes).filter(Notes.user_id == user_id).all()
+
+            # It will add notes to cache if not present
+            JwtUtils.save(
+                name=f"user_{user_id}",
+                key="all_notes",
+                value=[note.to_dict() for note in notes]
+            )
+            logger.info(f"Notes retrieved from Database for user ID: {user_id}")
+        else:
+            logger.info(f"Notes retrieved from Cache for user ID: {user_id}")
+
+        return {
+            "message" : "Get all notes",    
+            "status" : "Success",
+            "source" : source,
+            "data" : notes
+        }
+    except Exception:
+        logger.error("Failed to get all notes")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to get all notes")
 
 
 # UPDATE Note
@@ -85,27 +132,59 @@ def update_note(request:Request, note_id: int, updated_note: CreateNote, db: Ses
     '''
     # Assigning user id which is stored in request state to user_id
     user_id = request.state.user["id"]
+    # user_email = request.state.user["email"]
 
     # for update note finding note based on note is and user id is correct it will update note if note then raise exception
-    note = db.query(Notes).filter(Notes.id == note_id, Notes.user_id == user_id).first()
-    if not note:
+    existing_note = db.query(Notes).filter(Notes.id == note_id, Notes.user_id == user_id).first()
+    if not existing_note:
         logger.info("Note not found")
         raise HTTPException(status_code=404, detail="Note not found")
     
     # Based on key and values pair data is updated 
     for key, value in updated_note.model_dump().items():
-        setattr(note, key, value)
+        setattr(existing_note, key, value)
     
     db.commit()
-    db.refresh(note)
+    db.refresh(existing_note)
+
+    logger.info(f"Note {note_id} updated successfully")
 
     # Assigning class for update notes in this it takes name:user_id(str), key:note_id and value:note data
-    JwtUtils.save(name=f"user_{user_id}", key=f"note_{note_id}", value=note.to_dict)
-    return {
-        "message": "Note updated successfully",
-        "status": "success",
-        "data": note
-    }
+    JwtUtils.save(name=f"user_{user_id}", key=f"note_{note_id}", value=existing_note.to_dict)
+    logger.info(f"Note with ID: {note_id} updated successfully for user ID: {user_id}")
+
+    user_email = request.state.user["email"]
+
+    try:
+        if existing_note.reminder:
+            reminder_str = existing_note.reminder
+            task_name = f"reminder_task_{existing_note.id}"
+                
+            logger.info(f"schedule creater")
+            entry = Task(
+                    name=task_name,
+                    task= 'tasks.reminder_email', 
+                    schedule= crontab(
+                        minute= reminder_str.minute, 
+                        hour= reminder_str.hour,
+                        day_of_month= reminder_str.day,
+                        month_of_year= reminder_str.month
+                    ),
+                    app= celery,
+                    args=(user_email, existing_note.id, existing_note.title)
+                )
+            entry.save()
+
+            logger.info("Note is updated successfully")
+        return {
+            "message": "Note updated successfully",
+            "status": "success",
+            "data": existing_note
+        }
+
+    except Exception:
+        logger.error("Unable to update the note")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Falied to update the note")
 
 # DELETE Note
 @app.delete("/notes/{note_id}")
@@ -393,3 +472,5 @@ def delete_lable(request : Request, lable_id : int, db : Session = Depends(get_d
     except Exception:
         logger.exception("Unauthorized access")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized access")      
+    
+

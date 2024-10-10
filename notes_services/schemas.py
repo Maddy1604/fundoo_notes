@@ -9,7 +9,7 @@ class CreateNote(BaseModel):
     color: str
     is_archive: bool= False
     is_trash: bool= False
-    reminder: datetime | None= None
+    reminder: datetime | None = None
     
 class CreateLable(BaseModel):
     name : str

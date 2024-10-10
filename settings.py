@@ -36,11 +36,3 @@ settings = Settings()
 
 
 
-
-
-# from celery.schedules import crontab
-# from redbeat import RedBeatSchedulerEntry as Task
-
-
-
-# celery -A tasks.celery beat -l info
