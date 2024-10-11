@@ -1,10 +1,11 @@
 # Importing required liberaries and modules and settings
 
-from sqlalchemy import Column, BigInteger, String, Boolean, DateTime, Text, Integer
+from sqlalchemy import Column, BigInteger, String, Boolean, DateTime, Text, Integer, ForeignKey, Table
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy import create_engine
 from settings import settings
+
 
 # Defining base with declarative base
 Base = declarative_base()
@@ -21,6 +22,14 @@ def get_db():
         yield db 
     finally:
         db.close()
+        
+# Creating association table to form many to many relationship between notes and lables table
+association_table = Table(
+    'mid', 
+    Base.metadata,
+    Column('note_id', ForeignKey('notes.id'), primary_key=True),
+    Column('label_id', ForeignKey('labels.id'), primary_key = True)
+)
 
 # Creating class with base parameter in that creating and assigning properties to columns
 class Notes(Base):
@@ -35,9 +44,18 @@ class Notes(Base):
     reminder = Column(DateTime, nullable=True)
     user_id = Column(BigInteger, nullable=False, index=True)
 
+    # Creating relationship between lables and notes for access of each other
+    labels = relationship("Labels", secondary=association_table, back_populates='notes')
+
+    # Modification in t0_dict method for getting notes as well as labesl associated with it
     @property
     def to_dict(self):
-        return {col.name: getattr(self, col.name) for col in self.__table__.columns}
+        object_data = {col.name: getattr(self, col.name) for col in self.__table__.columns}
+        labels = []
+        if self.labels:
+            labels = [x.to_dict for x in self.labels]
+        object_data.update(labels = labels) #Updating object_data with labels and return it
+        return object_data
     
 class Labels(Base):
     __tablename__ = "labels"
@@ -47,7 +65,12 @@ class Labels(Base):
     color = Column(String, nullable=True)
     user_id = Column(BigInteger, index=True, nullable=False)
     
+    # Creating relationship between lables and notes for access of each other
+    notes = relationship("Notes", secondary=association_table, back_populates='labels')
+
+    # Gives the labesl in dict format
     @property
     def to_dict(self):
         return {col.name: getattr(self, col.name) for col in self.__table__.columns}
+
 
