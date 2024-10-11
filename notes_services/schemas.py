@@ -1,6 +1,7 @@
 # Importing pydantic modules for validation
 from pydantic import BaseModel
 from datetime import datetime
+from typing import List
 
 # Schema for creating new note | schemas means basically structure with validating rules
 class CreateNote(BaseModel):
@@ -11,7 +12,10 @@ class CreateNote(BaseModel):
     is_trash: bool= False
     reminder: datetime | None = None
     
-class CreateLable(BaseModel):
+class CreateLabel(BaseModel):
     name : str
     color : str
     
+class NoteLabel(BaseModel):
+    label_id : List[int]
+
