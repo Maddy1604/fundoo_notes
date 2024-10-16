@@ -27,7 +27,7 @@ def read_root():
     return {"message": "Welcome to the Fundoo Notes API!"}
 
 # Register a new user
-@app.post("/register")
+@app.post("/register", status_code=201)
 def register_user(request: Request, user: UserRegistration, db: Session = Depends(get_db)):
     '''
     Discription: Registers a new user after validating the input, checking if the user exists, 
@@ -90,7 +90,7 @@ def register_user(request: Request, user: UserRegistration, db: Session = Depend
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Error while registring new user.")
 
 #  Post api for User login
-@app.post("/login")
+@app.post("/login", status_code=201)
 def login_user(user: UserLogin, db: Session = Depends(get_db)):
     '''
     Discription:  Logs in a user by verifying their email and password against the database, 
