@@ -1,16 +1,21 @@
 from fastapi import FastAPI, Depends, HTTPException, Security, Request, status
 from sqlalchemy.orm import Session
 from .models import Notes, get_db, Labels
-from .schemas import CreateNote, CreateLabel, NoteLabel
+from .schemas import CreateNote, CreateLabel, NoteLabel, AddCollaborator, RemoveCollaborator
 from fastapi.security import APIKeyHeader
 from .utils import auth_user, JwtUtils, JwtUtilsLabels
 from loguru import logger
 from celery.schedules import crontab
 from redbeat import RedBeatSchedulerEntry as Task
 from tasks import celery
+import requests as http
+from sqlalchemy.orm.attributes import flag_modified
+from settings import settings
+# from sqlalchemy import or_
 
 # Initialize FastAPI app with dependency
 app = FastAPI(dependencies= [Security(APIKeyHeader(name= "Authorization", auto_error= False)), Depends(auth_user)])
+
 
 # CREATE Note
 @app.post("/notes/")
@@ -93,15 +98,15 @@ def get_notes(request: Request, db: Session = Depends(get_db)):
         user_id = request.state.user["id"]
 
         # Try to retrieve cached notes with labels
-        notes_data = JwtUtils.get(name=f"user_{user_id}")
-        source = "Cache"
+        # notes_data = JwtUtils.get(name=f"user_{user_id}")
+        # source = "Cache"
 
-        if not notes_data:
+        if True:#not notes_data:
             source = "Database"
 
             # Query to get all notes for the user, eager load labels
             notes = db.query(Notes).filter(Notes.user_id == user_id).all()
-    
+
             # Serialize notes and labels to store in cache
             notes_data = [x.to_dict for x in notes]
             logger.info(f"Notes and labels retrieved from Database for user ID: {user_id}")
@@ -118,7 +123,6 @@ def get_notes(request: Request, db: Session = Depends(get_db)):
     except Exception as error:
         logger.error(f"Failed to get all notes for user ID: {user_id}. Error: {str(error)}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to get all notes")
-
 
 # UPDATE Note
 @app.put("/notes/{note_id}")
@@ -685,3 +689,150 @@ def remove_labels(request:Request, note_id:int, payload : NoteLabel, db : Sessio
     except Exception as error:
         logger.error(f"Error while removing labels from note {note_id} for user {user_id}: {error}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error removing labels")
+
+# Add collaborators to note
+@app.patch('/notes/add-collaborators')
+def add_collaborators(request : Request, payload : AddCollaborator, db : Session = Depends(get_db)):
+    """
+    Description:
+    This function is used for adding collaborators from notes
+    Parameters:
+    request : The incoming request object.
+    payload : A AddCollaborator schema add to access user ids.
+    db : The database session dependency.
+    Return:
+    Return the success message with collaborator add from notes
+    """
+    try:
+        # Fetching user id from request.state
+        user_id = request.state.user["id"]
+
+        # Fetching note for particular user based on note id provided by user
+        note = db.query(Notes).filter(Notes.id == payload.note_id, Notes.user_id == user_id).first()
+        logger.info(f"Feteching note based Note ID : {payload.note_id} and user ID : {user_id}")
+
+        # If note not found
+        if not note:
+            logger.info(f"Note is not found for note ID : {payload.note_id}")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Note not found in database for user ID : {user_id} wiht note ID: {payload.note_id}")
+
+        # User can not add themselves as collaborator
+        if user_id in payload.user_ids:
+            logger.info(f"User ID {user_id} cannot add themselves as a collaborator.")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot add yourself as a collaborator.") 
+        
+        # Making HTTP request to user_Services to validate the users 
+        user_service_url = settings.USER_SERVICE_URL
+        response = http.get(user_service_url, params = {"user_ids" : payload.user_ids})
+       
+        # It chaecks the response is not satisfying then raise error
+        if response.status_code != 200:
+            logger.info(f"Some of the users are not found of user ID : {payload.user_ids}")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Some of the uses not found")
+        
+        # Getting user data in json format form response  
+        user_data = response.json()["data"]
+
+        # Checking for all user data is retrived from user services or not
+        if len(user_data) != len(payload.user_ids):
+            logger.info("Some of the users are not found from databse")
+            raise HTTPException("Some of the users are not found from databse")
+       
+        # Adding user to notes as collaborators.
+        for user in user_data:
+            note.collaborators[user['id']] = {"email" : user["email"], "access" : payload.access}
+            logger.info(f"Adding collaborators to notes {note.collaborators}")
+        flag_modified(note, "collaborators")    
+    
+        db.commit()
+        db.refresh(note)
+        logger.info("Chages are made and saved in database")
+
+        JwtUtils.save(name=f"user_{user_id}", key=f"note_{note.id}", value=note.to_dict)
+        logger.info(f"Collaborator {note.collaborators} added successfully to cache with note {note.id} for user {user_id}.")
+
+        # Return the success message
+        return{
+            "Message" : "Collaborators added successfully.",
+            "status" : "Success",
+            "Data" : note.collaborators
+        }
+    
+    except Exception as error:
+        logger.error(f"Unable to add collaborators to note ID : {payload.note_id} for user ID : {user_id} ")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unable to add collaborators : {error}")
+
+# Remove collaboraotrs form notes. 
+@app.patch('/notes/remove-collaborators')
+def remove_collaborators(request: Request, payload: RemoveCollaborator, db: Session = Depends(get_db)):
+    """
+    Description:
+    This function is used for removing collaborators from notes
+    Parameters:
+    request : The incoming request object.
+    payload : A RemoveCollaborator schema add to access user ids.
+    db : The database session dependency.
+    Return:
+    Return the success message with collaborator remove from notes
+    """
+    try:
+        # Fetching user id from request.state
+        user_id = request.state.user["id"]
+
+        # Fetching the note for the particular user based on note id provided by the user
+        note = db.query(Notes).filter(Notes.id == payload.note_id, Notes.user_id == user_id).first()
+        logger.info(f"Fetching note based on Note ID: {payload.note_id} and User ID: {user_id}")
+
+        # If note is not found
+        if not note:
+            logger.info(f"Note not found for Note ID: {payload.note_id}")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Note not found in database for User ID: {user_id} with Note ID: {payload.note_id}")
+
+        # Checking if collaborators exist in the note
+        if not note.collaborators:
+            logger.info(f"No collaborators found for Note ID: {payload.note_id}")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No collaborators found to remove.")
+
+
+        # Removing specified users from collaborators
+        for remove_user_id in payload.user_ids:
+            if str(remove_user_id) in note.collaborators:
+                note.collaborators.pop(str(remove_user_id))  # Remove user from collaborators
+                logger.info(f"Removed user with ID {remove_user_id} from collaborators")
+            
+            if str(remove_user_id) not in note.collaborators:
+                logger.info(f"User with ID {remove_user_id} is not a collaborator")
+                raise HTTPException(status_code=status.HTTP_304_NOT_MODIFIED, detail=f"User with ID {remove_user_id} is not a collaborator")
+
+        # Flagging collaborators field as modified
+        flag_modified(note, "collaborators")
+
+        # Commit the changes to the database
+        db.commit()
+        db.refresh(note)
+        logger.info("Changes saved in the database")
+
+        # Cache Invalidation or Update
+        cached_notes = JwtUtils.get(name = f"user_{user_id}")
+        
+        # Deleting collaborators form note in cache
+        if cached_notes:
+            for cached_note in cached_notes:
+                if cached_note["id"] == payload.note_id:
+                    cached_note["collaborators"] = note.collaborators  # Update collaborators in cache
+            JwtUtils.save(name = f"user_{user_id}", key=f"note_{payload.note_id}", value=cached_note)
+            logger.info(f"Updated cache for user {user_id} after removing collaborators")
+        else:
+            logger.info(f"No cache found for user {user_id}")
+
+        # Return success message
+        return {
+            "Message": "Collaborators removed successfully.",
+            "status": "Success",
+            "Data": note.collaborators
+        }
+
+    except Exception as error:
+        logger.error(f"Unable to remove collaborators from Note ID: {payload.note_id} for User ID: {user_id} : {error}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unable to remove collaborators: {error}")
+

@@ -1,6 +1,6 @@
 # Importing required liberaries and modules and settings
 
-from sqlalchemy import Column, BigInteger, String, Boolean, DateTime, Text, Integer, ForeignKey, Table
+from sqlalchemy import Column, BigInteger, String, Boolean, DateTime, Text, Integer, ForeignKey, Table, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy import create_engine
@@ -43,6 +43,7 @@ class Notes(Base):
     is_trash = Column(Boolean, default=False, index=True)
     reminder = Column(DateTime, nullable=True)
     user_id = Column(BigInteger, nullable=False, index=True)
+    collaborators = Column(JSON, default = dict) #JSON  field to store the collaborators
 
     # Creating relationship between lables and notes for access of each other
     labels = relationship("Labels", secondary=association_table, back_populates='notes')
@@ -55,6 +56,7 @@ class Notes(Base):
         if self.labels:
             labels = [x.to_dict for x in self.labels]
         object_data.update(labels = labels) #Updating object_data with labels and return it
+        object_data.update(collaborators = self.collaborators)
         return object_data
     
 class Labels(Base):
@@ -72,5 +74,4 @@ class Labels(Base):
     @property
     def to_dict(self):
         return {col.name: getattr(self, col.name) for col in self.__table__.columns}
-
 

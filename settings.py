@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     AUTHORIZATION : str
     CELERY_PATH : str
     REDBEAT_URL : str
+    USER_SERVICE_URL : str
 
 settings = Settings()
 

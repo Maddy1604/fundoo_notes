@@ -1,5 +1,5 @@
 # Importing required liberaries and moduels
-from fastapi import FastAPI, Depends, HTTPException, Request, status
+from fastapi import FastAPI, Depends, HTTPException, Request, status, Query
 from sqlalchemy.orm import Session
 from .models import User, get_db
 from .schemas import UserRegistration, UserLogin 
@@ -9,6 +9,9 @@ from settings import settings
 import jwt
 from tasks import send_mail 
 from loguru import logger
+from typing import List
+
+
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -206,3 +209,34 @@ def auth_user(token: str, db: Session = Depends(get_db)):
     except Exception as error:
         logger.error(f"Error while verifying because invalid token : {error}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Error while verifiying because invalid token.")
+
+# GET api for takes user ids and validate that ids and return the response
+@app.get('/users', status_code=200, include_in_schema=True)
+def get_users(user_ids : List[int] = Query([]), db : Session = Depends(get_db)):
+    """
+    Description:
+    Paramenter:
+    
+    """
+    try:
+        users = db.query(User).filter(User.id.in_(user_ids)).all()
+        logger.info("Fetching all payload.user_id users from database")
+
+        if not users:
+            logger.info("Some of the user is not found from databse")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found with user Id.")
+        
+        # It gives the dict of every user of given payload.user_id from database
+        users = [user.to_dict for user in users]
+
+        # Return the success meassage
+        return {
+            "message" : "User found successfully.", 
+            "status" : "Success",
+            "data" : users
+        }
+    
+    except Exception as error:
+        logger.error(f"Error while fetching the users : {error}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Error while fetching the users : {error}")
+    

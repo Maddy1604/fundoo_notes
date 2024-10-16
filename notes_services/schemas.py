@@ -19,3 +19,16 @@ class CreateLabel(BaseModel):
 class NoteLabel(BaseModel):
     label_id : List[int]
 
+class Collaborator(BaseModel):
+    user_id : int
+    access : str
+
+class AddCollaborator(BaseModel):
+    note_id : int
+    user_ids : List[int]
+    access : str
+
+class RemoveCollaborator(BaseModel):
+    note_id : int
+    user_ids : List[int]
+

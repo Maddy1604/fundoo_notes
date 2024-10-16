@@ -64,5 +64,3 @@ class JwtUtils():
 class JwtUtilsLabels(JwtUtils):
     # staring rediis chaching with configuration and database set at 1
     r = redis.Redis(host='localhost', port=6379, decode_responses=True, db = 1) 
-
-   
