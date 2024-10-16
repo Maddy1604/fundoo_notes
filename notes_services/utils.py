@@ -66,7 +66,7 @@ class JwtUtilsLabels(JwtUtils):
     r = redis.Redis(host='localhost', port=6379, decode_responses=True, db = 1) 
 
 # class for creating and storing caches of middleware data in redis database = 2
-class MiddleWare():
+class LoggingRequest():
     r = redis.Redis(host='localhost', port=6379, decode_responses=True, db = 2)
 
     @classmethod
