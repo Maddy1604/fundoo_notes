@@ -4,14 +4,11 @@ from sqlalchemy.orm import Session
 from .models import User, get_db
 from .schemas import UserRegistration, UserLogin 
 from .utils import hash_password, verify_password, create_token, create_tokens
-# from .email import send_verification_email
 from settings import settings
 import jwt
 from tasks import send_mail 
 from loguru import logger
 from typing import List
-
-
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -214,9 +211,15 @@ def auth_user(token: str, db: Session = Depends(get_db)):
 @app.get('/users', status_code=200, include_in_schema=True)
 def get_users(user_ids : List[int] = Query([]), db : Session = Depends(get_db)):
     """
-    Description:
+    Description: 
+    This function for get http request from note_services and in that request there is list of user ids
+    take the list of user ids and validate if there valid user or not. 
+    If they are valid users then return the user data.
     Paramenter:
-    
+    user_ids : list of user ids which is in query format
+    db : session = Depends(get_db): Uses dependency injection to pass the current database session to the function.
+    Return:
+    Success message if user found its data
     """
     try:
         users = db.query(User).filter(User.id.in_(user_ids)).all()

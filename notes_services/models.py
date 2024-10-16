@@ -56,7 +56,7 @@ class Notes(Base):
         if self.labels:
             labels = [x.to_dict for x in self.labels]
         object_data.update(labels = labels) #Updating object_data with labels and return it
-        object_data.update(collaborators = self.collaborators)
+        object_data.update(collaborators = self.collaborators) #Updating objext_data collaborators and return it
         return object_data
     
 class Labels(Base):

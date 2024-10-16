@@ -98,10 +98,10 @@ def get_notes(request: Request, db: Session = Depends(get_db)):
         user_id = request.state.user["id"]
 
         # Try to retrieve cached notes with labels
-        # notes_data = JwtUtils.get(name=f"user_{user_id}")
-        # source = "Cache"
+        notes_data = JwtUtils.get(name=f"user_{user_id}")
+        source = "Cache"
 
-        if True:#not notes_data:
+        if not notes_data:
             source = "Database"
 
             # Query to get all notes for the user, eager load labels
@@ -113,6 +113,7 @@ def get_notes(request: Request, db: Session = Depends(get_db)):
         else:
             logger.info(f"Notes and labels retrieved from Cache for user ID: {user_id}")
 
+        # Return the success message
         return {
             "message": "Get all notes with labels",    
             "status": "Success",

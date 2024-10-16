@@ -11,23 +11,28 @@ class CreateNote(BaseModel):
     is_archive: bool= False
     is_trash: bool= False
     reminder: datetime | None = None
-    
+
+# Schema for label creation
 class CreateLabel(BaseModel):
     name : str
     color : str
-    
+
+# Schema for list of labels adding to notes
 class NoteLabel(BaseModel):
     label_id : List[int]
 
+# Schema for collaborator
 class Collaborator(BaseModel):
     user_id : int
     access : str
 
+# Schema for adding collaborator to note
 class AddCollaborator(BaseModel):
     note_id : int
     user_ids : List[int]
     access : str
 
+# Schema for removing collaborator from note
 class RemoveCollaborator(BaseModel):
     note_id : int
     user_ids : List[int]
