@@ -51,7 +51,7 @@ class JwtUtils():
     @classmethod
     def delete(cls, name, key):
         """
-        Description : Thus function is called for saving values in note caches
+        Description : Thus function is called for deleting values in note caches
         Parameter:
         cls: By default it tkes
         name: for user id
@@ -64,3 +64,38 @@ class JwtUtils():
 class JwtUtilsLabels(JwtUtils):
     # staring rediis chaching with configuration and database set at 1
     r = redis.Redis(host='localhost', port=6379, decode_responses=True, db = 1) 
+
+# class for creating and storing caches of middleware data in redis database = 2
+class MiddleWare():
+    r = redis.Redis(host='localhost', port=6379, decode_responses=True, db = 2)
+
+    @classmethod
+    def save(cls, key, value):
+        """
+        Description : Thus function is called for saving loggs in redis
+        Parameter:
+        cls: By default it tkes
+        key : for log id
+        value : log value
+        """
+        cls.r.set(key, value)
+
+    @classmethod
+    def get(cls, key):
+        """
+        Description : Thus function is called for getting loggs in redis
+        Parameter:
+        cls: By default it tkes
+        key : for log id
+        """
+        return cls.r.get(key)
+
+    @classmethod
+    def delete(cls, key):
+        """
+        Description : Thus function is called for deleting loggs in redis
+        Parameter:
+        cls: By default it tkes
+        key : for log id
+        """
+        return cls.r.delete(key)

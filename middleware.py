@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from notes_services.utils import MiddleWare
+from notes_services.utils import LoggingRequest
 import json
 from notes_services.route import app
 
@@ -12,7 +12,7 @@ async def log_request(request : Request, call_next):
     redis_key = method
 
     # Fetching existing logs 
-    redis_instance = MiddleWare()
+    redis_instance = LoggingRequest()
     request_log = redis_instance.get(key=redis_key)
 
     # If exsting log is not present then creating new log
