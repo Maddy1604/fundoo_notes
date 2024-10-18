@@ -11,7 +11,7 @@ from tasks import celery
 import requests as http
 from sqlalchemy.orm.attributes import flag_modified
 from settings import settings
-# from sqlalchemy import or_
+from sqlalchemy import or_
 
 # Initialize FastAPI app with dependency
 app = FastAPI(dependencies= [Security(APIKeyHeader(name= "Authorization", auto_error= False)), Depends(auth_user)])
@@ -98,14 +98,15 @@ def get_notes(request: Request, db: Session = Depends(get_db)):
         user_id = request.state.user["id"]
 
         # Try to retrieve cached notes with labels
-        # notes_data = JwtUtils.get(name=f"user_{user_id}")
-        # source = "Cache"
+        notes_data = JwtUtils.get(name=f"user_{user_id}")
+        source = "Cache"
 
-        if True:#not notes_data:
+        if not notes_data:
             source = "Database"
 
             # Query to get all notes for the user, eager load labels
-            notes = db.query(Notes).filter(Notes.user_id == user_id).all()
+            notes = db.query(Notes).filter(or_(Notes.user_id == user_id, Notes.collaborators.has_key(f"{user_id}"))).all()
+            print(notes)
 
             # Serialize notes and labels to store in cache
             notes_data = [x.to_dict for x in notes]
