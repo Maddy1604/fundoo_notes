@@ -11,14 +11,14 @@ from tasks import celery
 import requests as http
 from sqlalchemy.orm.attributes import flag_modified
 from settings import settings
-# from sqlalchemy import or_
+from sqlalchemy import or_ 
 
 # Initialize FastAPI app with dependency
 app = FastAPI(dependencies= [Security(APIKeyHeader(name= "Authorization", auto_error= False)), Depends(auth_user)])
 
 
 # CREATE Note
-@app.post("/notes/")
+@app.post("/notes/", status_code=201)
 def create_note(request: Request, note: CreateNote, db: Session = Depends(get_db)):
     '''
     Description: 
@@ -80,7 +80,7 @@ def create_note(request: Request, note: CreateNote, db: Session = Depends(get_db
         raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="Unable to create the note")
 
 # GET all notes
-@app.get("/notes/")
+@app.get("/notes/", status_code=200)
 def get_notes(request: Request, db: Session = Depends(get_db)):
     """
     Description: 
@@ -105,7 +105,7 @@ def get_notes(request: Request, db: Session = Depends(get_db)):
             source = "Database"
 
             # Query to get all notes for the user, eager load labels
-            notes = db.query(Notes).filter(Notes.user_id == user_id).all()
+            notes = db.query(Notes).filter(or_(Notes.user_id == user_id, Notes.collaborators.has_key(f"{user_id}"))).all()
 
             # Serialize notes and labels to store in cache
             notes_data = [x.to_dict for x in notes]

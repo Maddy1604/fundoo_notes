@@ -68,15 +68,6 @@ def test_user_registration_missing_fields(db_setup):
     response = client.post("/register", json=data)
     assert response.status_code == 422    
 
-# Problem
-# def test_user_login_invalid_password(db_setup):
-#     data = {
-#         "email": "akki@gmail.com",
-#         "password": "wrongpassword"
-#     }
-#     response = client.post("/login", json=data)
-#     assert response.status_code == 401
-
 # 5. Register and Login user
 def test_user_login_success(db_setup):
     # Register the user
@@ -137,7 +128,7 @@ def test_user_login_wrong_email(db_setup):
     login_response = client.post("/login", json=login_data)
     assert login_response.status_code == 400
 
-# Verifiying user email by sending token as query parameter to endpoint
+# 8. Verifiying user email by sending token as query parameter to endpoint
 def test_user_fetch_user(db_setup):
     # Register the user
     registration_data = {
@@ -161,20 +152,20 @@ def test_user_fetch_user(db_setup):
     response = client.get(f"/user/{token}")
     assert response.status_code == 200
 
-# Getting user by their user_ids as query parameter
+# 9. Getting user by their user_ids as query parameter
 def test_get_users(db_setup):
     # Register two users
     user_1 = {
-        "email": "user1@example.com",
-        "password": "password@1",
-        "first_name": "First",
-        "last_name": "User"
+        "email": "ritesh24@gmail.com",
+        "password": "ritesh24@gmail.com",
+        "first_name": "Ritesh",
+        "last_name": "Lavande"
     }
     user_2 = {
-        "email": "user2@example.com",
-        "password": "password@2",
-        "first_name": "Second",
-        "last_name": "User"
+        "email": "mahesh16400@gmail.com",
+        "password": "mahesh16400@gmail.com",
+        "first_name": "Mahesh",
+        "last_name": "Lavande"
     }
     response_1 = client.post("/register", json=user_1)
     response_2 = client.post("/register", json=user_2)
