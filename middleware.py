@@ -20,7 +20,7 @@ async def log_request(request : Request, call_next):
         request_log = {}
     else:
         request_log = json.loads(request_log)
-    print(request_log)
+        
     # Updating counting for each endpoint
     if endpoint in request_log:
         request_log[endpoint] += 1
