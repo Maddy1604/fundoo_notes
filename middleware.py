@@ -2,6 +2,10 @@ from fastapi import FastAPI, Request
 from notes_services.utils import LoggingRequest
 import json
 from notes_services.route import app
+from slowapi.middleware import SlowAPIMiddleware
+
+# Add throttling middleware and exception handler
+app.add_middleware(SlowAPIMiddleware)
 
 @app.middleware("http")
 async def log_request(request : Request, call_next):
@@ -20,7 +24,7 @@ async def log_request(request : Request, call_next):
         request_log = {}
     else:
         request_log = json.loads(request_log)
-        
+
     # Updating counting for each endpoint
     if endpoint in request_log:
         request_log[endpoint] += 1
