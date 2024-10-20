@@ -9,13 +9,38 @@ import jwt
 from tasks import send_mail 
 from loguru import logger
 from typing import List
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from fastapi.responses import JSONResponse
 
 # Initialize FastAPI app
 app = FastAPI()
 
+# Initialize the limiter with a rate limit of 5 requests per minute per user
+limiter = Limiter(key_func=get_remote_address)
+
+# Register the rate limit exception handler
+app.state.limiter = limiter
+
+# # Custom rate limit exception handler
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    """
+    Handles rate limiting exceptions and returns a custom response when the limit is exceeded.
+    """
+    return JSONResponse(
+        status_code=429,
+        content={
+            "message": "Rate limit exceeded. Please try again later.",
+            "detail": f"You have exceeded the allowed number of requests. Try again after some time."
+        }
+    )
+
 # Simple get api with response
 @app.get("/")
-def read_root():
+@limiter.limit("5/minute")  
+def read_root(request: Request):    
     '''
     Discription: This is the handler function that gets called when a request is made to the root endpoint
     Parameters: None
@@ -25,6 +50,7 @@ def read_root():
 
 # Register a new user
 @app.post("/register", status_code=201)
+@limiter.limit("5/minute") 
 def register_user(request: Request, user: UserRegistration, db: Session = Depends(get_db)):
     '''
     Discription: Registers a new user after validating the input, checking if the user exists, 
@@ -88,7 +114,8 @@ def register_user(request: Request, user: UserRegistration, db: Session = Depend
 
 #  Post api for User login
 @app.post("/login", status_code=201)
-def login_user(user: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("5/minute") 
+def login_user(request: Request, user: UserLogin, db: Session = Depends(get_db)):
     '''
     Discription:  Logs in a user by verifying their email and password against the database, 
     returning a success message if they match.
@@ -124,7 +151,8 @@ def login_user(user: UserLogin, db: Session = Depends(get_db)):
 
 # Get api for verifying user with generated acccess token
 @app.get("/verify/{token}")
-def verify_registered_user(token: str, db: Session = Depends(get_db)):
+@limiter.limit("5/minute") 
+def verify_registered_user(request: Request, token: str, db: Session = Depends(get_db)):
     '''
     Discription:  Verifiying user access token and access the resource, 
     returning a success message if they match.
@@ -172,7 +200,8 @@ def verify_registered_user(token: str, db: Session = Depends(get_db)):
 # particular route (/user/{token}) will not appear in the auto-generated documentation (Swagger UI, Redoc, etc.).
 
 @app.get("/user/{token}",status_code= 200, include_in_schema= False)
-def auth_user(token: str, db: Session = Depends(get_db)):
+@limiter.limit("5/minute") 
+def auth_user(request: Request, token: str, db: Session = Depends(get_db)):
     '''
     Discription:  This function verifyies the user email address, 
     returning a success message if they match.
@@ -209,7 +238,8 @@ def auth_user(token: str, db: Session = Depends(get_db)):
 
 # GET api for takes user ids and validate that ids and return the response
 @app.get('/users', status_code=200, include_in_schema=True)
-def get_users(user_ids : List[int] = Query([]), db : Session = Depends(get_db)):
+@limiter.limit("5/minute") 
+def get_users(request: Request, user_ids : List[int] = Query([]), db : Session = Depends(get_db)):
     """
     Description: 
     This function for get http request from note_services and in that request there is list of user ids
