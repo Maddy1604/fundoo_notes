@@ -39,7 +39,7 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
 
 # Simple get api with response
 @app.get("/")
-@limiter.limit("5/minute")  
+@limiter.limit("100/minute")  
 def read_root(request: Request):    
     '''
     Discription: This is the handler function that gets called when a request is made to the root endpoint
@@ -50,7 +50,7 @@ def read_root(request: Request):
 
 # Register a new user
 @app.post("/register", status_code=201)
-@limiter.limit("5/minute") 
+@limiter.limit("100/minute") 
 def register_user(request: Request, user: UserRegistration, db: Session = Depends(get_db)):
     '''
     Discription: Registers a new user after validating the input, checking if the user exists, 
@@ -114,7 +114,7 @@ def register_user(request: Request, user: UserRegistration, db: Session = Depend
 
 #  Post api for User login
 @app.post("/login", status_code=201)
-@limiter.limit("5/minute") 
+@limiter.limit("100/minute") 
 def login_user(request: Request, user: UserLogin, db: Session = Depends(get_db)):
     '''
     Discription:  Logs in a user by verifying their email and password against the database, 
@@ -151,7 +151,7 @@ def login_user(request: Request, user: UserLogin, db: Session = Depends(get_db))
 
 # Get api for verifying user with generated acccess token
 @app.get("/verify/{token}")
-@limiter.limit("5/minute") 
+@limiter.limit("100/minute") 
 def verify_registered_user(request: Request, token: str, db: Session = Depends(get_db)):
     '''
     Discription:  Verifiying user access token and access the resource, 
@@ -200,7 +200,7 @@ def verify_registered_user(request: Request, token: str, db: Session = Depends(g
 # particular route (/user/{token}) will not appear in the auto-generated documentation (Swagger UI, Redoc, etc.).
 
 @app.get("/user/{token}",status_code= 200, include_in_schema= False)
-@limiter.limit("5/minute") 
+@limiter.limit("100/minute") 
 def auth_user(request: Request, token: str, db: Session = Depends(get_db)):
     '''
     Discription:  This function verifyies the user email address, 
@@ -238,7 +238,7 @@ def auth_user(request: Request, token: str, db: Session = Depends(get_db)):
 
 # GET api for takes user ids and validate that ids and return the response
 @app.get('/users', status_code=200, include_in_schema=True)
-@limiter.limit("5/minute") 
+@limiter.limit("100/minute") 
 def get_users(request: Request, user_ids : List[int] = Query([]), db : Session = Depends(get_db)):
     """
     Description: 
