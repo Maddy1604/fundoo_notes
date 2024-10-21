@@ -267,7 +267,6 @@ def test_delete_non_exising_note(db_setup, auth_user_mock):
 
 # Test case for adding collaborator successfully
 @responses.activate
-
 def test_add_collaborators(db_setup, auth_user_mock, get_user_mock):
     initial_note = {
         "title": "Initial Note",
@@ -301,7 +300,6 @@ def test_add_collaborators(db_setup, auth_user_mock, get_user_mock):
 
 # Test case for adding user itself as collaborator
 @responses.activate
-
 def test_add_self_as_collaborator(db_setup, auth_user_mock, get_user_mock):
     initial_note = {
         "title": "Initial Note",
@@ -400,3 +398,61 @@ def test_remove_collaborators_success(db_setup, auth_user_mock, get_user_mock):
     print(f"Remove Collaborators Response: {response.text}")
     # Assert success
     assert response.status_code == 200
+
+# Test Case to Remove Collaborators When They Don’t Exist
+@responses.activate
+def test_remove_collaborators_not_found(db_setup, auth_user_mock, get_user_mock):
+    # Initial note
+    initial_note = {
+        "title": "Test Note",
+        "description": "This is a test note.",
+        "color": "green",
+        "is_archive": False,
+        "is_trash": False,
+        "reminder": "2024-10-18T21:00:00"
+    }
+
+    # Create a note
+    create_response = client.post("/notes/", json=initial_note, headers={"Authorization": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJha2tpQGdtYWlsLmNvbSIsInVzZXJfaWQiOjk3LCJleHAiOjE3Mjk0NDY3NjJ9.y2qvjJd0METH-aXv-lh2CdSdEsBsGKP1Xk7zaNC_WnI"})
+    assert create_response.status_code == 201
+    note_id = create_response.json()["data"]["id"]
+
+    # Remove non-existent collaborators from note
+    remove_data = {
+        "note_id": note_id,
+        "user_ids": [999]  # User ID 999 doesn't exist
+    }
+    
+    response = client.patch("/notes/remove-collaborators", json=remove_data, headers={"Authorization": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJha2tpQGdtYWlsLmNvbSIsInVzZXJfaWQiOjk3LCJleHAiOjE3Mjk0NDY3NjJ9.y2qvjJd0METH-aXv-lh2CdSdEsBsGKP1Xk7zaNC_WnI"})
+    
+    # Assert failure
+    assert response.status_code == 400
+
+#Test Case to Remove Collaborators With No Collaborators in Note
+@responses.activate
+def test_remove_collaborators_no_collaborators(db_setup, auth_user_mock):
+    # Initial note without collaborators
+    initial_note = {
+        "title": "Test Note",
+        "description": "This is a test note.",
+        "color": "red",
+        "is_archive": False,
+        "is_trash": False,
+        "reminder": "2024-10-18T21:00:00"
+    }
+
+    # Create a note
+    create_response = client.post("/notes/", json=initial_note, headers={"Authorization": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJha2tpQGdtYWlsLmNvbSIsInVzZXJfaWQiOjk3LCJleHAiOjE3Mjk0NDY3NjJ9.y2qvjJd0METH-aXv-lh2CdSdEsBsGKP1Xk7zaNC_WnI"})
+    assert create_response.status_code == 201
+    note_id = create_response.json()["data"]["id"]
+
+    # Attempt to remove collaborators from a note without any collaborators
+    remove_data = {
+        "note_id": note_id,
+        "user_ids": [2]
+    }
+    
+    response = client.patch("/notes/remove-collaborators", json=remove_data, headers={"Authorization": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJha2tpQGdtYWlsLmNvbSIsInVzZXJfaWQiOjk3LCJleHAiOjE3Mjk0NDY3NjJ9.y2qvjJd0METH-aXv-lh2CdSdEsBsGKP1Xk7zaNC_WnI"})
+    
+    # Assert failure
+    assert response.status_code == 400
